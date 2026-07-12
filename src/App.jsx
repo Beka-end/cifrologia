@@ -985,20 +985,13 @@ function Paywall({ onClose,onUnlock }){
           <h2 style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:24, margin:"4px 0" }}>{t("Премиум-доступ","Premium access")}</h2>
           <p style={{ ...pp, color:C.inkSoft }}>{t("Глубокие разборы, натальная карта, Сюцай, прогнозы, совместимость и чат без лимитов.","Deep readings, natal chart, forecasts, compatibility and unlimited chat.")}</p>
         </div>
-        <div style={{ marginTop:16, borderRadius:18, border:`2px solid ${C.line}`, padding:16 }}>
-          <div style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:18 }}>💳 {t("Разовая оплата","One-time payment")}</div>
-          <div style={{ color:C.inkSoft, fontSize:14.5, margin:"2px 0 6px" }}>{t("Полный доступ к одному подробному разбору.","Full access to one detailed reading.")}</div>
-          <div style={{ color:C.violetD, fontWeight:800, fontSize:20, marginBottom:8 }}>{cfg.price || t("2 990 ₸","$6.90")}</div>
+        <div style={{ marginTop:16, borderRadius:18, border:`2px solid ${C.violet}`, background:C.soft, padding:16, position:"relative" }}>
+          <div style={{ position:"absolute", top:-10, left:16, background:grad, color:"#fff", fontSize:10.5, fontWeight:700, padding:"2px 10px", borderRadius:20 }}>{t("ПОЛНЫЙ ДОСТУП","FULL ACCESS")}</div>
+          <div style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:18 }}>♾️ {t("Подписка на неделю","Weekly subscription")}</div>
+          <div style={{ color:C.inkSoft, fontSize:14.5, margin:"2px 0 6px" }}>{t("Открывает все разборы, прогнозы, совместимость и чат без ограничений.","Unlocks all readings, forecasts, compatibility and unlimited chat.")}</div>
+          <div style={{ color:C.violetD, fontWeight:800, fontSize:22, marginBottom:10 }}>{cfg.price || t("4 990 ₸ / неделя","$9.90 / week")}</div>
           {payLink(cfg.kaspiLink, "Kaspi", t("Оплатить через Kaspi","Pay with Kaspi"), { ...bigBtn, background:"#ff3b30" })}
-          <div style={{ height:8 }}/>
-          {payLink(cfg.appleLink, "Apple Pay", " Pay", { ...bigBtn, background:"#000" })}
-        </div>
-        <div style={{ marginTop:12, borderRadius:18, border:`2px solid ${C.violet}`, background:C.soft, padding:16, position:"relative" }}>
-          <div style={{ position:"absolute", top:-10, left:16, background:grad, color:"#fff", fontSize:10.5, fontWeight:700, padding:"2px 10px", borderRadius:20 }}>{t("ВЫГОДНО","BEST VALUE")}</div>
-          <div style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:18 }}>♾️ {t("Подписка","Subscription")}</div>
-          <div style={{ color:C.inkSoft, fontSize:14.5, margin:"2px 0 6px" }}>{t("Все разборы и чат без ограничений на месяц.","All readings and chat, unlimited, for a month.")}</div>
-          <div style={{ color:C.violetD, fontWeight:800, fontSize:20, marginBottom:8 }}>{cfg.subPrice || t("5 900 ₸ / мес","$12.90 / mo")}</div>
-          {payLink(cfg.kaspiSubLink || cfg.kaspiLink, t("подписка","subscription"), t("Оформить подписку","Subscribe"), bigBtn)}
+          {cfg.appleLink && <><div style={{ height:8 }}/>{payLink(cfg.appleLink, "Apple Pay", " Pay", { ...bigBtn, background:"#000" })}</>}
         </div>
         {note && <p style={{ ...pp, fontSize:14.5, color:C.inkSoft, background:C.soft, borderRadius:14, padding:12, marginTop:12 }}>{note}</p>}
         <button onClick={checkPaid} disabled={checking} style={{ ...ghostBtn, marginTop:12 }}>{checking?t("Проверяю…","Checking…"):t("Я оплатил — проверить доступ","I've paid — check access")}</button>
@@ -1023,7 +1016,7 @@ function AdminPanel(){
   const call=(body)=>fetch("/api/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const login=async()=>{ const r=await call({password:pass,action:"list"}); if(r.status!==200){ setMsg("Неверный пароль или база не подключена"); return; } const d=await r.json(); setUsers(d.users||[]); setCfg(d.config||{}); setAuthed(true); setMsg(""); };
   const setPaid=async(id,paid)=>{ await call({password:pass,action:"setPaid",id,paid}); login(); };
-  const saveCfg=async()=>{ await call({password:pass,action:"setConfig",kaspiLink:cfg.kaspiLink,kaspiSubLink:cfg.kaspiSubLink,appleLink:cfg.appleLink,price:cfg.price,subPrice:cfg.subPrice,promo:cfg.promo}); setMsg("Настройки сохранены ✓"); };
+  const saveCfg=async()=>{ await call({password:pass,action:"setConfig",kaspiLink:cfg.kaspiLink,appleLink:cfg.appleLink,price:cfg.price,promo:cfg.promo}); setMsg("Настройки сохранены ✓"); };
   const paidCount=users.filter(u=>u.paid).length;
   const box={ minHeight:"100vh", background:"#f6f2ff", fontFamily:"'Nunito',sans-serif", color:C.ink, padding:"24px 16px" };
   const inpS={ width:"100%", padding:"12px 14px", borderRadius:12, fontSize:16, background:"#fff", border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none", marginTop:8 };
@@ -1049,14 +1042,10 @@ function AdminPanel(){
           <h3 style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, margin:"0 0 8px" }}>⚙️ Настройка оплаты Kaspi</h3>
           <label style={{ fontSize:14.5, color:C.inkSoft }}>Ссылка Kaspi на оплату (из приложения Kaspi → Бизнес → выставить счёт/ссылка)</label>
           <input value={cfg.kaspiLink||""} onChange={e=>setCfg({...cfg,kaspiLink:e.target.value})} placeholder="https://pay.kaspi.kz/..." style={inpS}/>
-          <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Ссылка Kaspi для подписки (можно ту же)</label>
-          <input value={cfg.kaspiSubLink||""} onChange={e=>setCfg({...cfg,kaspiSubLink:e.target.value})} placeholder="https://pay.kaspi.kz/... (для подписки)" style={inpS}/>
-          <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Ссылка Apple Pay / Stripe (для англоязычной аудитории)</label>
+          <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Ссылка Apple Pay / Stripe (для англоязычной аудитории, можно оставить пустым)</label>
           <input value={cfg.appleLink||""} onChange={e=>setCfg({...cfg,appleLink:e.target.value})} placeholder="https://buy.stripe.com/... (Apple Pay включается в Stripe)" style={inpS}/>
-          <div style={{ display:"flex", gap:8 }}>
-            <input value={cfg.price||""} onChange={e=>setCfg({...cfg,price:e.target.value})} placeholder="Цена разовая, напр. 2 990 ₸" style={inpS}/>
-            <input value={cfg.subPrice||""} onChange={e=>setCfg({...cfg,subPrice:e.target.value})} placeholder="Цена подписки, напр. 5 900 ₸ / мес" style={inpS}/>
-          </div>
+          <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Цена подписки (в неделю) — что видит клиент</label>
+          <input value={cfg.price||""} onChange={e=>setCfg({...cfg,price:e.target.value})} placeholder="Напр. 4 990 ₸ / неделя" style={inpS}/>
           <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>🔑 Секретный промокод (полный доступ бесплатно). Держи в тайне — кому дашь, тот заходит везде.</label>
           <input value={cfg.promo||""} onChange={e=>setCfg({...cfg,promo:e.target.value})} placeholder="Напр. VIP2026" style={inpS}/>
           <button onClick={saveCfg} style={{ ...bigBtn, marginTop:12 }}>Сохранить настройки</button>
