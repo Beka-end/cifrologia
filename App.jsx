@@ -380,11 +380,12 @@ async function loadData(k){ try{ const s=localStorage.getItem(k); return s?JSON.
 const KEY_ACC="cifro:account", KEY_HIST="cifro:history", KEY_PRO="cifro:premium";
 
 // связь с сервером (база данных / статус оплаты)
-function clientId(){ let id=localStorage.getItem("cifro:id"); if(!id){ id="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); localStorage.setItem("cifro:id",id);} return id; }
-async function apiRegister(name,dob){ try{ await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:clientId(),name,dob})}); }catch(e){} }
-async function apiStatus(){ try{ const r=await fetch("/api/status?id="+clientId()); const d=await r.json(); return !!d.paid; }catch(e){ return false; } }
+function curLogin(){ try{ return localStorage.getItem("cifro:login")||""; }catch(e){ return ""; } }
+const histKey=(login)=>"cifro:history:"+(login||"guest");
+async function authApi(action,body){ try{ const r=await fetch("/api/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})}); return await r.json(); }catch(e){ return {error:"net"}; } }
+async function apiStatus(){ try{ const r=await fetch("/api/status?id="+encodeURIComponent(curLogin())); const d=await r.json(); return !!d.paid; }catch(e){ return false; } }
 async function apiConfig(){ try{ const r=await fetch("/api/config"); return await r.json(); }catch(e){ return {}; } }
-async function apiRedeem(code){ try{ const r=await fetch("/api/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:clientId(),code})}); const d=await r.json(); return !!d.ok; }catch(e){ return false; } }
+async function apiRedeem(code){ try{ const r=await fetch("/api/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:curLogin(),code})}); const d=await r.json(); return !!d.ok; }catch(e){ return false; } }
 
 // ---------- ИИ ----------
 const SAFE = `Пиши тепло, по-доброму и с поддержкой, простым языком, на «ты». Давай глубокий, но понятный разбор и практические подсказки. Только позитивный, обнадёживающий настрой: никаких пугающих, фаталистичных или негативных предсказаний, никаких тем болезней с плохим исходом, смерти, вреда себе. Подчёркивай свободу выбора — это подсказки для размышления, а не приговор. Если человек делится тяжёлыми чувствами — мягко поддержи и по-доброму предложи опереться на близких или специалиста, без каких-либо инструкций.`;
@@ -444,8 +445,9 @@ export default function App(){
   LANG = lang;
 
   useEffect(()=>{ (async()=>{
-    const a=await loadData(KEY_ACC), h=await loadData(KEY_HIST), pr=await loadData(KEY_PRO);
-    if(a)setAccount(a); if(h)setHistory(h); if(pr)setPremium(true);
+    const a=await loadData(KEY_ACC), pr=await loadData(KEY_PRO);
+    if(a){ setAccount(a); const h=await loadData(histKey(a.login)); if(h)setHistory(h); }
+    if(pr)setPremium(true);
     if(await apiStatus()){ setPremium(true); await saveData(KEY_PRO,true); }
     try{ const c=await apiConfig(); if(c && c.showHistory===false) setShowHistory(false); }catch(e){}
     setLoaded(true);
@@ -456,18 +458,26 @@ export default function App(){
     return { name,d,m,y,sun,lp, soul:reduce(d,false), chinese:chineseSign(y), personalYearNow:personalYear(d,m,now),
       forecast:Array.from({length:9},(_,i)=>({ year:now+i, num:personalYear(d,m,now+i) })) };
   };
-  const start=async()=>{
-    const d=+form.day,m=+form.month,y=+form.year;
-    if(!form.name||d<1||d>31||m<1||m>12||y<1900||y>2025) return;
-    setProfile(build(form.name,d,m,y));
-    if(saveOn){ const a={name:form.name,d,m,y}; setAccount(a); await saveData(KEY_ACC,a); }
-    apiRegister(form.name, `${d}.${m}.${y}`);
+  const onAuthed=async({login,name,dob,paid})=>{
+    const [d,m,y]=String(dob).split(".").map(Number);
+    setProfile(build(name||login,d,m,y));
+    try{ localStorage.setItem("cifro:login",login); }catch(e){}
+    const acc={login,name:name||login,d,m,y}; setAccount(acc); await saveData(KEY_ACC,acc);
+    const h=await loadData(histKey(login)); setHistory(h||[]);
+    if(paid){ setPremium(true); await saveData(KEY_PRO,true); }
     setStage("result"); setTab("profile");
   };
-  const enterSaved=()=>{ setProfile(build(account.name,account.d,account.m,account.y)); setStage("result"); setTab("profile"); };
-  const addHistory=async(item)=>{ const e={ id:Date.now(), ts:new Date().toLocaleString("ru-RU"), ...item };
-    const next=[e,...history]; setHistory(next); await saveData(KEY_HIST,next); };
-  const delHistory=async(id)=>{ const next=history.filter(h=>h.id!==id); setHistory(next); await saveData(KEY_HIST,next); };
+  const enterSaved=async()=>{
+    setProfile(build(account.name,account.d,account.m,account.y));
+    try{ localStorage.setItem("cifro:login",account.login||""); }catch(e){}
+    const h=await loadData(histKey(account.login)); setHistory(h||[]);
+    if(await apiStatus()){ setPremium(true); await saveData(KEY_PRO,true); }
+    setStage("result"); setTab("profile");
+  };
+  const logout=async()=>{ setAccount(null); setPremium(false); try{ localStorage.removeItem("cifro:login"); }catch(e){} await saveData(KEY_PRO,false); };
+  const addHistory=async(item)=>{ const e={ id:Date.now(), ts:new Date().toLocaleString(LANG==="en"?"en-US":"ru-RU"), ...item };
+    const next=[e,...history]; setHistory(next); await saveData(histKey(account&&account.login),next); };
+  const delHistory=async(id)=>{ const next=history.filter(h=>h.id!==id); setHistory(next); await saveData(histKey(account&&account.login),next); };
   const unlock=async()=>{ setPremium(true); await saveData(KEY_PRO,true); setPaywall(false); };
 
   if(typeof window!=="undefined" && window.location.hash==="#admin") return <AdminPanel/>;
@@ -485,7 +495,7 @@ export default function App(){
       </div>
       <div style={{ position:"relative", zIndex:1, maxWidth:560, margin:"0 auto", padding:"22px 16px 56px" }}>
         {stage==="intro"
-          ? <Intro {...{form,setForm,start,saveOn,setSaveOn,account,enterSaved,loaded}}/>
+          ? <Intro {...{onAuthed,account,enterSaved,logout,loaded}}/>
           : <Result {...{profile,tab,setTab,history,addHistory,delHistory,saveOn,premium,showHistory,
               openPaywall:()=>setPaywall(true), reset:()=>setStage("intro")}}/>}
         <Disclaimer/>
@@ -495,14 +505,61 @@ export default function App(){
   );
 }
 
-// ---------- ВВОД / ВХОД ----------
-function Intro({ form,setForm,start,saveOn,setSaveOn,account,enterSaved,loaded }){
-  const inp=(k,ph,max)=>(
-    <input value={form[k]} placeholder={ph} inputMode={k==="name"?"text":"numeric"} maxLength={max}
-      onChange={e=>setForm({...form,[k]:e.target.value.replace(k==="name"?"":/\D/g,"")})}
-      style={{ flex:1, minWidth:0, padding:"13px 14px", borderRadius:14, fontSize:16.5,
-        background:C.soft, border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" }}/>
+// ---------- ВХОД / РЕГИСТРАЦИЯ ----------
+function Intro({ onAuthed,account,enterSaved,logout,loaded }){
+  const [phase,setPhase]=useState("login"); // login | signin | signup | guest
+  const [login,setLogin]=useState("");
+  const [pass,setPass]=useState("");
+  const [f,setF]=useState({ day:"", month:"", year:"", name:"" });
+  const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false);
+  const field=(val,set,ph,type,max)=>(
+    <input value={val} placeholder={ph} type={type||"text"} maxLength={max} inputMode={type==="tel"?"numeric":undefined}
+      onChange={e=>set(e.target.value)}
+      style={{ width:"100%", padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
+        border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none", marginTop:8 }}/>
   );
+  const num=(k,ph,max)=>(
+    <input value={f[k]} placeholder={ph} inputMode="numeric" maxLength={max}
+      onChange={e=>setF({...f,[k]:e.target.value.replace(/\D/g,"")})}
+      style={{ flex:1, minWidth:0, padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
+        border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" }}/>
+  );
+  const cleanLogin=(v)=>v.toLowerCase().replace(/[^a-z0-9_]/g,"");
+  const checkLogin=async()=>{
+    setMsg("");
+    const id=cleanLogin(login);
+    if(id.length<3){ setMsg(t("Логин: минимум 3 символа, латиница/цифры.","Login: at least 3 characters, latin/numbers.")); return; }
+    setBusy(true); const r=await authApi("check",{login:id}); setBusy(false);
+    if(r.error==="db"||r.error==="net"){ setPhase("guest"); return; }         // база не подключена — гостевой вход
+    if(r.error==="bad_login"){ setMsg(t("Логин только латиницей и цифрами.","Login: latin letters and numbers only.")); return; }
+    setPhase(r.exists ? "signin" : "signup");
+  };
+  const doSignin=async()=>{
+    setMsg(""); setBusy(true);
+    const r=await authApi("login",{login:cleanLogin(login),password:pass}); setBusy(false);
+    if(r.ok){ onAuthed({ login:cleanLogin(login), name:r.profile.name, dob:r.profile.dob, paid:r.paid }); return; }
+    if(r.error==="badpass") setMsg(t("Неверный пароль.","Wrong password."));
+    else if(r.error==="nouser") setMsg(t("Такого логина нет.","No such login."));
+    else setMsg(t("Ошибка входа.","Sign-in error."));
+  };
+  const validDob=()=>{ const d=+f.day,m=+f.month,y=+f.year; return d>=1&&d<=31&&m>=1&&m<=12&&y>=1900&&y<=2025; };
+  const doSignup=async()=>{
+    setMsg("");
+    if(pass.length<4){ setMsg(t("Пароль: минимум 4 символа.","Password: at least 4 characters.")); return; }
+    if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
+    const dob=`${+f.day}.${+f.month}.${+f.year}`;
+    setBusy(true);
+    const r=await authApi("register",{login:cleanLogin(login),password:pass,name:f.name||cleanLogin(login),dob}); setBusy(false);
+    if(r.ok){ onAuthed({ login:cleanLogin(login), name:f.name||cleanLogin(login), dob, paid:false }); return; }
+    if(r.error==="exists"){ setMsg(t("Этот логин уже занят.","This login is taken.")); setPhase("login"); }
+    else if(r.error==="weak") setMsg(t("Пароль слишком короткий.","Password too short."));
+    else setMsg(t("Ошибка регистрации.","Sign-up error."));
+  };
+  const doGuest=()=>{ // без базы: только имя+дата, без пароля
+    if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
+    onAuthed({ login:cleanLogin(login)||"guest", name:f.name||cleanLogin(login)||t("Гость","Guest"), dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false });
+  };
+
   return (
     <div>
       <div className="reveal" style={{ textAlign:"center", margin:"18px 0 22px" }}>
@@ -511,26 +568,55 @@ function Intro({ form,setForm,start,saveOn,setSaveOn,account,enterSaved,loaded }
           background:grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>{t("Цифрология","Numerology")}</h1>
         <p style={{ color:C.inkSoft, fontSize:18, margin:0 }}>{t("тёплый разбор тебя по дате рождения","a warm reading of you by your birth date")}</p>
       </div>
-      {loaded && account && (
+
+      {loaded && account && phase==="login" && (
         <Card style={{ marginBottom:14, textAlign:"center" }}>
           <p style={{ margin:"0 0 12px", fontSize:19 }}>{t("С возвращением,","Welcome back,")} <b style={{color:C.violetD}}>{account.name}</b> 👋</p>
           <button onClick={enterSaved} style={bigBtn}>{t("Открыть мой профиль","Open my profile")}</button>
+          <button onClick={logout} style={{ ...ghostBtn, marginTop:8 }}>{t("Войти под другим логином","Sign in as someone else")}</button>
         </Card>
       )}
-      <Card>
-        <p style={{ ...pp, color:C.inkSoft, margin:"0 0 14px" }}>
-          {account ? t("Или сделай новый разбор:","Or make a new reading:") : t("Привет! Введи имя и дату рождения — и я расскажу о тебе много доброго и полезного 🌿","Hi! Enter your name and birth date — and I'll share lots of warm, useful things about you 🌿")}
-        </p>
-        {inp("name",t("Имя","Name"),24)}
-        <div style={{ display:"flex", gap:8, marginTop:10 }}>{inp("day",t("ДД","DD"),2)}{inp("month",t("ММ","MM"),2)}{inp("year",t("ГГГГ","YYYY"),4)}</div>
-        <label style={{ display:"flex", alignItems:"center", gap:10, marginTop:16, cursor:"pointer", color:C.inkSoft, fontSize:16 }}>
-          <span onClick={()=>setSaveOn(!saveOn)} style={{ width:24, height:24, borderRadius:8, flex:"none",
-            border:`2px solid ${C.violet}`, display:"flex", alignItems:"center", justifyContent:"center",
-            background:saveOn?grad:"transparent", color:"#fff", fontWeight:800 }}>{saveOn?"✓":""}</span>
-          <span onClick={()=>setSaveOn(!saveOn)}>{t("Сохранять мои разборы (личный кабинет)","Save my readings (personal account)")}</span>
-        </label>
-        <button onClick={start} style={{ ...bigBtn, marginTop:18 }}>{t("Узнать о себе ✨","Discover yourself ✨")}</button>
-      </Card>
+
+      {phase==="login" && (
+        <Card>
+          <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>{t("Введи свой логин (латиница). Если он есть — попросим пароль, если нет — создадим аккаунт.","Enter your login (latin). If it exists we'll ask for a password, if not we'll create an account.")}</p>
+          {field(login,(v)=>setLogin(cleanLogin(v)),t("Логин (латиница)","Login (latin)"),"text",20)}
+          <button onClick={checkLogin} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Проверяю…","Checking…"):t("Далее ✨","Continue ✨")}</button>
+          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
+        </Card>
+      )}
+
+      {phase==="signin" && (
+        <Card>
+          <p style={{ ...pp, margin:"0 0 6px" }}>{t("С возвращением,","Welcome back,")} <b style={{color:C.violetD}}>{login}</b>. {t("Введи пароль.","Enter your password.")}</p>
+          {field(pass,setPass,t("Пароль","Password"),"password",40)}
+          <button onClick={doSignin} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Вхожу…","Signing in…"):t("Войти","Sign in")}</button>
+          <button onClick={()=>{setPhase("login");setPass("");setMsg("");}} style={{ ...ghostBtn, marginTop:8 }}>{t("Назад","Back")}</button>
+          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
+        </Card>
+      )}
+
+      {phase==="signup" && (
+        <Card>
+          <p style={{ ...pp, margin:"0 0 6px" }}>{t("Логин","Login")} <b style={{color:C.violetD}}>{login}</b> {t("свободен — создаём аккаунт 🌿","is free — let's create an account 🌿")}</p>
+          {field(f.name,(v)=>setF({...f,name:v}),t("Имя (как обращаться)","Your name"),"text",24)}
+          {field(pass,setPass,t("Придумай пароль","Create a password"),"password",40)}
+          <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
+          <button onClick={doSignup} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Создаю…","Creating…"):t("Создать аккаунт ✨","Create account ✨")}</button>
+          <button onClick={()=>{setPhase("login");setPass("");setMsg("");}} style={{ ...ghostBtn, marginTop:8 }}>{t("Назад","Back")}</button>
+          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
+        </Card>
+      )}
+
+      {phase==="guest" && (
+        <Card>
+          <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>{t("Введи имя и дату рождения — и начнём 🌿","Enter your name and birth date — and let's begin 🌿")}</p>
+          {field(f.name,(v)=>setF({...f,name:v}),t("Имя","Name"),"text",24)}
+          <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
+          <button onClick={doGuest} style={{ ...bigBtn, marginTop:14 }}>{t("Узнать о себе ✨","Discover yourself ✨")}</button>
+          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
+        </Card>
+      )}
     </div>
   );
 }
