@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const {
       messages,
       system,
-      max_tokens = 2000,
+      max_tokens = 2500,
       // Модель. Сейчас: Sonnet 5 (мощнее 4.6, по вводным ценам дешевле).
       // Максимум качества: замени на "claude-opus-4-8" ($5/$25).
       // Экономия на объёме: "claude-haiku-4-5-20251001" ($1/$5).

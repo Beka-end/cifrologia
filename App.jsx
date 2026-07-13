@@ -389,6 +389,21 @@ async function apiRedeem(code){ try{ const r=await fetch("/api/redeem",{method:"
 
 // ---------- ИИ ----------
 const SAFE = `Пиши тепло, по-доброму и с поддержкой, простым языком, на «ты». Давай глубокий, но понятный разбор и практические подсказки. Только позитивный, обнадёживающий настрой: никаких пугающих, фаталистичных или негативных предсказаний, никаких тем болезней с плохим исходом, смерти, вреда себе. Подчёркивай свободу выбора — это подсказки для размышления, а не приговор. Если человек делится тяжёлыми чувствами — мягко поддержи и по-доброму предложи опереться на близких или специалиста, без каких-либо инструкций.`;
+function cleanText(s){
+  if(!s) return s;
+  let x = s
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")   // заголовки ## → обычный текст
+    .replace(/\*\*(.*?)\*\*/g, "$1")       // **жирный** → обычный
+    .replace(/\*\*/g, "")                  // одиночные **
+    .replace(/^\s*-{3,}\s*$/gm, "")        // линии ---
+    .replace(/\n{3,}/g, "\n\n")            // лишние пустые строки
+    .trim();
+  if(!/[.!?…»)"']$/.test(x)){              // если текст оборвался на полуслове
+    const i = Math.max(x.lastIndexOf("."),x.lastIndexOf("!"),x.lastIndexOf("?"),x.lastIndexOf("…"),x.lastIndexOf("»"));
+    if(i>40) x = x.slice(0,i+1).trim();
+  }
+  return x;
+}
 async function ask(messages, system){
   const langLine = LANG === "en"
     ? " Respond in natural, warm English. Write plain flowing paragraphs, without any Markdown (no ##, **, ---, bullet or asterisk lists). Keep it complete and finish your thought."
@@ -396,11 +411,11 @@ async function ask(messages, system){
   try{
     const res = await fetch("/api/oracle",{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ system:(system||"")+langLine, messages, max_tokens:2000 }),
+      body:JSON.stringify({ system:(system||"")+langLine, messages, max_tokens:2500 }),
     });
     const data = await res.json();
     if(!data || !data.content) return t("Связь сейчас прервалась 🙏 Попробуй ещё разок через минутку.","Connection dropped 🙏 Please try again in a moment.");
-    return data.content.map(c=>c.type==="text"?c.text:"").join("\n").trim();
+    return cleanText(data.content.map(c=>c.type==="text"?c.text:"").join("\n").trim());
   }catch(e){ return t("Связь сейчас прервалась 🙏 Попробуй ещё разок через минутку.","Connection dropped 🙏 Please try again in a moment."); }
 }
 
