@@ -396,7 +396,8 @@ function cleanText(s){
     .replace(/\*\*(.*?)\*\*/g, "$1")       // **жирный** → обычный
     .replace(/\*\*/g, "")                  // одиночные **
     .replace(/^\s*-{3,}\s*$/gm, "")        // линии ---
-    .replace(/\n{3,}/g, "\n\n")            // лишние пустые строки
+    .replace(/[ \t]+\n/g, "\n")            // хвостовые пробелы
+    .replace(/(\n\s*){2,}/g, "\n\n")       // схлопнуть пустые строки в один отступ
     .trim();
   if(!/[.!?…»)"']$/.test(x)){              // если текст оборвался на полуслове
     const i = Math.max(x.lastIndexOf("."),x.lastIndexOf("!"),x.lastIndexOf("?"),x.lastIndexOf("…"),x.lastIndexOf("»"));
@@ -406,8 +407,8 @@ function cleanText(s){
 }
 async function ask(messages, system){
   const langLine = LANG === "en"
-    ? " Respond in natural, warm English. Write plain flowing paragraphs, without any Markdown (no ##, **, ---, bullet or asterisk lists). Keep it complete and finish your thought."
-    : " Отвечай на русском языке. Пиши обычным живым текстом абзацами, без Markdown-разметки (никаких ##, **, ---, списков со звёздочками). Обязательно заверши мысль до конца.";
+    ? " Respond in warm, natural English. Be compact: 3-5 short paragraphs, no Markdown (no ##, **, ---, asterisk lists) and no big empty gaps between lines. Always finish with a complete closing sentence — never stop mid-thought or mid-word."
+    : " Отвечай на русском языке. Пиши компактно: 3–5 небольших абзацев, без Markdown-разметки (никаких ##, **, ---, списков со звёздочками) и без больших пустых отступов между строками. Обязательно заверши текст цельным финальным предложением — не обрывайся на полуслове.";
   try{
     const res = await fetch("/api/oracle",{
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -520,15 +521,15 @@ export default function App(){
   );
 }
 
-// ---------- ВХОД / РЕГИСТРАЦИЯ ----------
+// ---------- ВХОД / РЕГИСТРАЦИЯ (один экран) ----------
 function Intro({ onAuthed,account,enterSaved,logout,loaded }){
-  const [phase,setPhase]=useState("login"); // login | signin | signup | guest
-  const [login,setLogin]=useState("");
+  const [name,setName]=useState("");
   const [pass,setPass]=useState("");
-  const [f,setF]=useState({ day:"", month:"", year:"", name:"" });
+  const [f,setF]=useState({ day:"", month:"", year:"" });
   const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false);
+  const clean=(v)=>v.toLowerCase().replace(/[^a-z0-9_]/g,"");
   const field=(val,set,ph,type,max)=>(
-    <input value={val} placeholder={ph} type={type||"text"} maxLength={max} inputMode={type==="tel"?"numeric":undefined}
+    <input value={val} placeholder={ph} type={type||"text"} maxLength={max}
       onChange={e=>set(e.target.value)}
       style={{ width:"100%", padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
         border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none", marginTop:8 }}/>
@@ -539,40 +540,29 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
       style={{ flex:1, minWidth:0, padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
         border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" }}/>
   );
-  const cleanLogin=(v)=>v.toLowerCase().replace(/[^a-z0-9_]/g,"");
-  const checkLogin=async()=>{
-    setMsg("");
-    const id=cleanLogin(login);
-    if(id.length<3){ setMsg(t("Логин: минимум 3 символа, латиница/цифры.","Login: at least 3 characters, latin/numbers.")); return; }
-    setBusy(true); const r=await authApi("check",{login:id}); setBusy(false);
-    if(r.error==="db"||r.error==="net"){ setPhase("guest"); return; }         // база не подключена — гостевой вход
-    if(r.error==="bad_login"){ setMsg(t("Логин только латиницей и цифрами.","Login: latin letters and numbers only.")); return; }
-    setPhase(r.exists ? "signin" : "signup");
-  };
-  const doSignin=async()=>{
-    setMsg(""); setBusy(true);
-    const r=await authApi("login",{login:cleanLogin(login),password:pass}); setBusy(false);
-    if(r.ok){ onAuthed({ login:cleanLogin(login), name:r.profile.name, dob:r.profile.dob, paid:r.paid }); return; }
-    if(r.error==="badpass") setMsg(t("Неверный пароль.","Wrong password."));
-    else if(r.error==="nouser") setMsg(t("Такого логина нет.","No such login."));
-    else setMsg(t("Ошибка входа.","Sign-in error."));
-  };
   const validDob=()=>{ const d=+f.day,m=+f.month,y=+f.year; return d>=1&&d<=31&&m>=1&&m<=12&&y>=1900&&y<=2025; };
-  const doSignup=async()=>{
+  const go=async()=>{
     setMsg("");
+    const id=clean(name);
+    if(id.length<3){ setMsg(t("Имя (латиница), минимум 3 символа.","Name (latin), at least 3 characters.")); return; }
     if(pass.length<4){ setMsg(t("Пароль: минимум 4 символа.","Password: at least 4 characters.")); return; }
-    if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
-    const dob=`${+f.day}.${+f.month}.${+f.year}`;
     setBusy(true);
-    const r=await authApi("register",{login:cleanLogin(login),password:pass,name:f.name||cleanLogin(login),dob}); setBusy(false);
-    if(r.ok){ onAuthed({ login:cleanLogin(login), name:f.name||cleanLogin(login), dob, paid:false }); return; }
-    if(r.error==="exists"){ setMsg(t("Этот логин уже занят.","This login is taken.")); setPhase("login"); }
-    else if(r.error==="weak") setMsg(t("Пароль слишком короткий.","Password too short."));
-    else setMsg(t("Ошибка регистрации.","Sign-up error."));
-  };
-  const doGuest=()=>{ // без базы: только имя+дата, без пароля
-    if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
-    onAuthed({ login:cleanLogin(login)||"guest", name:f.name||cleanLogin(login)||t("Гость","Guest"), dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false });
+    let r=await authApi("login",{login:id,password:pass});
+    if(r.error==="db"||r.error==="net"){ // база не подключена — гостевой режим
+      setBusy(false);
+      if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
+      onAuthed({ login:id, name:name.trim(), dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false }); return;
+    }
+    if(r.ok){ setBusy(false); onAuthed({ login:id, name:r.profile.name, dob:r.profile.dob, paid:r.paid }); return; }
+    if(r.error==="badpass"){ setBusy(false); setMsg(t("Это имя уже занято. Введи правильный пароль или выбери другое имя.","This name is taken. Enter the correct password or choose another name.")); return; }
+    // пользователя нет → регистрируем (имя свободно)
+    if(!validDob()){ setBusy(false); setMsg(t("Новое имя! Укажи дату рождения, чтобы создать профиль.","New name! Enter your birth date to create a profile.")); return; }
+    const dob=`${+f.day}.${+f.month}.${+f.year}`;
+    const reg=await authApi("register",{login:id,password:pass,name:name.trim(),dob});
+    setBusy(false);
+    if(reg.ok){ onAuthed({ login:id, name:name.trim(), dob, paid:false }); return; }
+    if(reg.error==="exists") setMsg(t("Это имя только что заняли. Введи пароль или выбери другое.","This name was just taken. Enter the password or choose another."));
+    else setMsg(t("Не удалось создать профиль.","Could not create the profile."));
   };
 
   return (
@@ -584,54 +574,24 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
         <p style={{ color:C.inkSoft, fontSize:18, margin:0 }}>{t("тёплый разбор тебя по дате рождения","a warm reading of you by your birth date")}</p>
       </div>
 
-      {loaded && account && phase==="login" && (
+      {loaded && account && (
         <Card style={{ marginBottom:14, textAlign:"center" }}>
           <p style={{ margin:"0 0 12px", fontSize:19 }}>{t("С возвращением,","Welcome back,")} <b style={{color:C.violetD}}>{account.name}</b> 👋</p>
           <button onClick={enterSaved} style={bigBtn}>{t("Открыть мой профиль","Open my profile")}</button>
-          <button onClick={logout} style={{ ...ghostBtn, marginTop:8 }}>{t("Войти под другим логином","Sign in as someone else")}</button>
+          <button onClick={logout} style={{ ...ghostBtn, marginTop:8 }}>{t("Войти под другим именем","Sign in as someone else")}</button>
         </Card>
       )}
 
-      {phase==="login" && (
-        <Card>
-          <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>{t("Введи свой логин (латиница). Если он есть — попросим пароль, если нет — создадим аккаунт.","Enter your login (latin). If it exists we'll ask for a password, if not we'll create an account.")}</p>
-          {field(login,(v)=>setLogin(cleanLogin(v)),t("Логин (латиница)","Login (latin)"),"text",20)}
-          <button onClick={checkLogin} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Проверяю…","Checking…"):t("Далее ✨","Continue ✨")}</button>
-          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
-        </Card>
-      )}
-
-      {phase==="signin" && (
-        <Card>
-          <p style={{ ...pp, margin:"0 0 6px" }}>{t("С возвращением,","Welcome back,")} <b style={{color:C.violetD}}>{login}</b>. {t("Введи пароль.","Enter your password.")}</p>
-          {field(pass,setPass,t("Пароль","Password"),"password",40)}
-          <button onClick={doSignin} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Вхожу…","Signing in…"):t("Войти","Sign in")}</button>
-          <button onClick={()=>{setPhase("login");setPass("");setMsg("");}} style={{ ...ghostBtn, marginTop:8 }}>{t("Назад","Back")}</button>
-          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
-        </Card>
-      )}
-
-      {phase==="signup" && (
-        <Card>
-          <p style={{ ...pp, margin:"0 0 6px" }}>{t("Логин","Login")} <b style={{color:C.violetD}}>{login}</b> {t("свободен — создаём аккаунт 🌿","is free — let's create an account 🌿")}</p>
-          {field(f.name,(v)=>setF({...f,name:v}),t("Имя (как обращаться)","Your name"),"text",24)}
-          {field(pass,setPass,t("Придумай пароль","Create a password"),"password",40)}
-          <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
-          <button onClick={doSignup} disabled={busy} style={{ ...bigBtn, marginTop:14 }}>{busy?t("Создаю…","Creating…"):t("Создать аккаунт ✨","Create account ✨")}</button>
-          <button onClick={()=>{setPhase("login");setPass("");setMsg("");}} style={{ ...ghostBtn, marginTop:8 }}>{t("Назад","Back")}</button>
-          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
-        </Card>
-      )}
-
-      {phase==="guest" && (
-        <Card>
-          <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>{t("Введи имя и дату рождения — и начнём 🌿","Enter your name and birth date — and let's begin 🌿")}</p>
-          {field(f.name,(v)=>setF({...f,name:v}),t("Имя","Name"),"text",24)}
-          <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
-          <button onClick={doGuest} style={{ ...bigBtn, marginTop:14 }}>{t("Узнать о себе ✨","Discover yourself ✨")}</button>
-          {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
-        </Card>
-      )}
+      <Card>
+        <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>
+          {t("Введи имя (латиница) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.","Enter a name (latin) and password. A new name creates a profile, an existing one asks for the password.")}
+        </p>
+        {field(name,(v)=>setName(clean(v)),t("Имя (латиница, уникальное)","Name (latin, unique)"),"text",20)}
+        {field(pass,setPass,t("Пароль","Password"),"password",40)}
+        <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
+        <button onClick={go} disabled={busy} style={{ ...bigBtn, marginTop:16 }}>{busy?t("Минутку…","One moment…"):t("Узнать о себе ✨","Discover yourself ✨")}</button>
+        {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
+      </Card>
     </div>
   );
 }
@@ -702,7 +662,7 @@ function ProfileTab({ p,save,premium,openPaywall }){
         <p style={pp}>{t(`Год ${p.chinese} добавляет тебе свои славные черты.`,`The year of the ${p.chinese} adds its fine traits to you.`)}</p>
       </Card>
       <AISection {...{premium,openPaywall,save}} p={p} histType={t("Портрет личности","Personality portrait")} title={t("Глубокий портрет личности","Deep personality portrait")} cta={t("Раскрыть подробный портрет","Reveal detailed portrait")}
-        prompt={`Сделай глубокий, тёплый и структурный портрет: ${p.name}, знак ${p.sun.n} (${p.sun.el}), число пути ${p.lp}, число души ${p.soul}, восточный знак ${p.chinese}. Раскрой: 1) сильные стороны и таланты, 2) как мыслит и чувствует, 3) что важно для души и в отношениях, 4) зоны роста по-доброму, 5) тёплое напутствие. 5-6 абзацев.`}/>
+        prompt={`Сделай глубокий, тёплый и структурный портрет: ${p.name}, знак ${p.sun.n} (${p.sun.el}), число пути ${p.lp}, число души ${p.soul}, восточный знак ${p.chinese}. Раскрой: 1) сильные стороны и таланты, 2) как мыслит и чувствует, 3) что важно для души и в отношениях, 4) зоны роста по-доброму, 5) тёплое напутствие. 3-4 небольших абзаца.`}/>
     </div>
   );
 }
@@ -726,7 +686,7 @@ function NatalTab({ p,save,premium,openPaywall }){
       </Card>
       <AISection key={`${time}|${place}`} {...{premium,openPaywall,save}} p={p} sys={sys}
         histType={t("Натальная карта","Natal chart")} title={t("Детальный разбор натальной карты","Detailed natal chart reading")} cta={t("Раскрыть натальную карту","Reveal natal chart")}
-        prompt={`Сделай детальный, тёплый разбор по натальной карте и нумерологии как ведический астролог и нумеролог. Человек: ${p.name}, дата рождения ${p.d}.${p.m}.${p.y}${time?`, время рождения ${time}`:", время рождения неизвестно"}${place?`, место рождения ${place}`:""}. Данные: солнечный знак ${p.sun.n} (стихия ${p.sun.el}), число пути ${p.lp}, число души ${p.soul}, восточный знак ${p.chinese}. Раскрой по разделам: 1) Личность и асцендент-лагна — как человек проявляется в мире; 2) Луна и эмоциональный мир; 3) Предназначение и кармические задачи (дхарма); 4) Любовь, дело и здоровье; 5) Сильные стороны по стихии и числам. Затем — прогноз по годам на ближайшие 5 лет (по 1-2 предложения на год). В конце — мягкое благословение-напутствие. Доступно, без жаргона, только в позитивном ключе.`}/>
+        prompt={`Сделай детальный, тёплый разбор по натальной карте и нумерологии как ведический астролог и нумеролог. Человек: ${p.name}, дата рождения ${p.d}.${p.m}.${p.y}${time?`, время рождения ${time}`:", время рождения неизвестно"}${place?`, место рождения ${place}`:""}. Данные: солнечный знак ${p.sun.n} (стихия ${p.sun.el}), число пути ${p.lp}, число души ${p.soul}, восточный знак ${p.chinese}. Раскрой по разделам: 1) Личность и асцендент-лагна — как человек проявляется в мире; 2) Луна и эмоциональный мир; 3) Предназначение и кармические задачи (дхарма); 4) Любовь, дело и здоровье; 5) Сильные стороны по стихии и числам. Затем — краткий прогноз на ближайшие 3 года (по 1 предложению на год). В конце — мягкое благословение-напутствие. Доступно, без жаргона, только в позитивном ключе.`}/>
       <Card style={{ background:C.soft }}>
         <p style={{ ...pp, fontSize:14, color:C.inkSoft, margin:0 }}>
           {t('🔮 Для максимально точной карты (дома, точные положения планет) в рабочей версии подключаются астрологические эфемериды/API по времени и месту рождения. Здесь разбор формирует ИИ-наставник по доступным данным.','🔮 For a fully precise chart (houses, exact planet positions), the production version connects an astrology ephemeris/API using birth time and place. Here the reading is created by the AI guide from the available data.')}
@@ -770,7 +730,7 @@ function SyucaiTab({ p,save,premium,openPaywall }){
       </Card>
       <AISection {...{premium,openPaywall,save}} p={p} sys={sys}
         histType={t("Сюцай","Syucai")} title={t("Разбор по Сюцай и прогноз","Syucai reading and forecast")} cta={t("Раскрыть разбор Сюцай","Reveal Syucai reading")}
-        prompt={`Сделай тёплый разбор по практике Сюцай для ${p.name} (дата ${p.d}.${p.m}.${p.y}). Число сознания ${cons}, число миссии ${mission}. Раскрой: 1) как работает энергия числа сознания — светлая и теневая стороны, как развивать светлую; 2) число миссии — предназначение и как к нему идти (учитывая раскрытие к 33 годам); 3) как перейти от «страдающего эго» к «эго, ищущему счастья» — конкретные шаги; 4) добрый прогноз на ближайшие годы. Без фатальности и страха, только поддержка и рост. 5-6 абзацев.`}/>
+        prompt={`Сделай тёплый разбор по практике Сюцай для ${p.name} (дата ${p.d}.${p.m}.${p.y}). Число сознания ${cons}, число миссии ${mission}. Раскрой: 1) как работает энергия числа сознания — светлая и теневая стороны, как развивать светлую; 2) число миссии — предназначение и как к нему идти (учитывая раскрытие к 33 годам); 3) как перейти от «страдающего эго» к «эго, ищущему счастья» — конкретные шаги; 4) добрый прогноз на ближайшие годы. Без фатальности и страха, только поддержка и рост. 3-4 небольших абзаца.`}/>
     </div>
   );
 }
@@ -818,7 +778,7 @@ function MatrixTab({ p,save,premium,openPaywall }){
         );})}
       </Card>
       <AISection {...{premium,openPaywall,save}} p={p} histType={t("Психоматрица","Psychomatrix")} title={t("Разбор психоматрицы и прогноз","Psychomatrix reading and forecast")} cta={t("Раскрыть психоматрицу","Reveal psychomatrix")}
-        prompt={`Тёплый разбор психоматрицы (квадрат Пифагора) для ${p.name}. Ячейки (цифра×кол-во): ${promptCounts}. Объясни простыми словами сильные стороны и зоны роста по ячейкам и линиям (самооценка, семья, стабильность, талант, духовность). Затем добрый прогноз: на что опереться, к чему идёшь, как раскрыть потенциал. 5-6 абзацев.`}/>
+        prompt={`Тёплый разбор психоматрицы (квадрат Пифагора) для ${p.name}. Ячейки (цифра×кол-во): ${promptCounts}. Объясни простыми словами сильные стороны и зоны роста по ячейкам и линиям (самооценка, семья, стабильность, талант, духовность). Затем добрый прогноз: на что опереться, к чему идёшь, как раскрыть потенциал. 3-4 небольших абзаца.`}/>
     </div>
   );
 }
@@ -873,7 +833,7 @@ function ForecastTab({ p,save,premium,openPaywall }){
         </Card>
       ))}
       <AISection {...{premium,openPaywall,save}} p={p} histType={t("Прогноз на годы","Year forecast")} title={t("Личный прогноз на 9 лет","Personal 9-year forecast")} cta={t("Составить мой прогноз","Create my forecast")}
-        prompt={`Вдохновляющий персональный прогноз по годам для ${p.name} (знак ${p.sun.n}, число пути ${p.lp}, число души ${p.soul}). Личные годы: ${p.forecast.map(f=>`${f.year} — число ${f.num} (${gYT(f.num)})`).join(", ")}. По 1-2 тёплых предложения на КАЖДЫЙ год: ключевая тема и добрая возможность. В конце — общее напутствие на весь цикл. Только позитивно.`}/>
+        prompt={`Вдохновляющий персональный прогноз по годам для ${p.name} (знак ${p.sun.n}, число пути ${p.lp}, число души ${p.soul}). Личные годы: ${p.forecast.map(f=>`${f.year} — число ${f.num} (${gYT(f.num)})`).join(", ")}. По 1 тёплому предложению на каждый год: ключевая тема и добрая возможность. В конце — общее напутствие на весь цикл. Только позитивно.`}/>
     </div>
   );
 }
@@ -917,7 +877,7 @@ function CompatibilityTab({ p,save,premium,openPaywall }){
         <button onClick={()=>setPt(null)} style={{ ...ghostBtn, marginTop:14 }}>{t('Сменить партнёра','Change partner')}</button>
       </Card>
       <AISection key={`${pt.d}.${pt.m}.${pt.y}`} {...{premium,openPaywall,save}} p={p} histType={t("Совместимость","Compatibility")} title={t("Тёплый разбор пары","A warm couple reading")} cta={t("Раскрыть совместимость","Reveal compatibility")}
-        prompt={`Разбери совместимость пары по-доброму. Первый: ${p.name}, ${p.sun.n} (${p.sun.el}), число ${p.lp}. Второй: ${pt.name}, ${pt.sun.n} (${pt.sun.el}), число ${pt.lp}. Индекс ${score}%. Опиши: в чём вы прекрасно дополняете друг друга, ваши сильные стороны как пары, маленькие различия и тёплые советы, как сделать союз ещё крепче. Без приговоров, бережно. Обращайся на «вы». 4-5 абзацев.`}/>
+        prompt={`Разбери совместимость пары по-доброму. Первый: ${p.name}, ${p.sun.n} (${p.sun.el}), число ${p.lp}. Второй: ${pt.name}, ${pt.sun.n} (${pt.sun.el}), число ${pt.lp}. Индекс ${score}%. Опиши: в чём вы прекрасно дополняете друг друга, ваши сильные стороны как пары, маленькие различия и тёплые советы, как сделать союз ещё крепче. Без приговоров, бережно. Обращайся на «вы». 3-4 небольших абзаца.`}/>
     </div>
   );
 }
@@ -933,7 +893,7 @@ function CareerTab({ p,save,premium,openPaywall }){
         <p style={pp}>{gPY(p.personalYearNow)}</p>
       </Card>
       <AISection {...{premium,openPaywall,save}} p={p} histType={t("Прогноз по работе","Career forecast")} title={t("Прогноз по карьере и деньгам","Career and money forecast")} cta={t("Раскрыть карьерный прогноз","Reveal career forecast")}
-        prompt={`Добрый карьерный разбор для ${p.name} (знак ${p.sun.n}, ${p.sun.el}; число пути ${p.lp}; личный год ${p.personalYearNow}). Опиши: профессиональные суперсилы, подходящие сферы и роли, как комфортнее обращаться с деньгами, и вдохновляющий прогноз на год — возможности и приятные шаги к росту. Это поддержка и идеи, без финансовых гарантий. 4-5 абзацев.`}/>
+        prompt={`Добрый карьерный разбор для ${p.name} (знак ${p.sun.n}, ${p.sun.el}; число пути ${p.lp}; личный год ${p.personalYearNow}). Опиши: профессиональные суперсилы, подходящие сферы и роли, как комфортнее обращаться с деньгами, и вдохновляющий прогноз на год — возможности и приятные шаги к росту. Это поддержка и идеи, без финансовых гарантий. 3-4 небольших абзаца.`}/>
     </div>
   );
 }
@@ -947,7 +907,11 @@ function LifehacksTab({ p,save,premium,openPaywall }){
         <p style={{ ...pp, color:C.inkSoft }}>{t('Маленькие добрые подсказки под твой характер и число — как жить легче, приятнее и в гармонии с собой.','Small kind tips tuned to your character and number — how to live easier, happier and in harmony with yourself.')}</p>
       </Card>
       <AISection {...{premium,openPaywall,save}} p={p} histType={t("Лайфхаки","Life hacks")} title={t("Персональные лайфхаки","Personal life hacks")} cta={t("Получить мои лайфхаки","Get my life hacks")}
-        prompt={`Дай ${p.name} (знак ${p.sun.n}, ${p.sun.el}, число пути ${p.lp}) 7 тёплых практичных лайфхаков по жизни под его характер: как восполнять энергию, организовать день, беречь отношения, расти в деле, радовать себя. Каждый — короткий, конкретный, добрый и выполнимый. Только позитив и поддержка. Оформи списком с эмодзи.`}/>
+        prompt={`Дай ${p.name} (знак ${p.sun.n}, ${p.sun.el}, число пути ${p.lp}) 7 тёплых практичных лайфхаков по жизни под его характер: как восполнять энергию, организовать день, беречь отношения, расти в деле, радовать себя. Каждый — короткий, конкретный, добрый и выполнимый. Только позитив и поддержка. Каждый лайфхак с новой строки, начинай с эмодзи.`}/>
+      <AISection {...{premium,openPaywall,save}} p={p} histType={t("Шуточный прогноз","Funny prediction")} title={t("😄 Шуточное предсказание","😄 Funny prediction")} cta={t("Посмеши меня","Make me smile")}
+        prompt={`Придумай тёплое, доброе и смешное шуточное предсказание для ${p.name} (знак ${p.sun.n}, число пути ${p.lp}) на ближайшее время. Лёгкий юмор и милая самоирония, без обидного и без негатива — только по-доброму, чтобы человек улыбнулся. 1-2 коротких абзаца, заверши законченным предложением.`}/>
+      <AISection {...{premium,openPaywall,save}} p={p} histType={t("Предсказание в стихах","Prediction in verse")} title={t("📜 Предсказание в стихах","📜 Prediction in verse")} cta={t("Хочу стишок ✨","I want a rhyme ✨")}
+        prompt={`Сочини короткое ОРИГИНАЛЬНОЕ шуточное предсказание-стишок для ${p.name} (знак ${p.sun.n}, число пути ${p.lp}): 4–8 строк, с рифмой, тёплое и с добрым юмором, только позитив. Каждая строка с новой строки. Обязательно заверши последнюю строку точкой или восклицательным знаком.`}/>
     </div>
   );
 }
@@ -1126,6 +1090,7 @@ function AdminPanel(){
   const call=(body)=>fetch("/api/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const login=async()=>{ const r=await call({password:pass,action:"list"}); if(r.status!==200){ setMsg("Неверный пароль или база не подключена"); return; } const d=await r.json(); setUsers(d.users||[]); setCfg(d.config||{}); setAuthed(true); setMsg(""); };
   const setPaid=async(id,paid)=>{ await call({password:pass,action:"setPaid",id,paid}); login(); };
+  const delUser=async(id)=>{ await call({password:pass,action:"delUser",id}); login(); };
   const saveCfg=async()=>{ await call({password:pass,action:"setConfig",kaspiLink:cfg.kaspiLink,appleLink:cfg.appleLink,price:cfg.price,promo:cfg.promo,showHistory:cfg.showHistory!==false}); setMsg("Настройки сохранены ✓"); };
   const paidCount=users.filter(u=>u.paid).length;
   const box={ minHeight:"100vh", background:"#f6f2ff", fontFamily:"'Nunito',sans-serif", color:C.ink, padding:"24px 16px" };
@@ -1175,10 +1140,14 @@ function AdminPanel(){
             <div key={u.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.line}`, gap:10 }}>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontWeight:700 }}>{u.name||"—"} <span style={{ color:C.inkSoft, fontWeight:400 }}>· {u.dob||""}</span></div>
-                <div style={{ color:C.inkSoft, fontSize:13 }}>{u.ts?new Date(u.ts).toLocaleString("ru-RU"):""}</div>
+                <div style={{ color:C.inkSoft, fontSize:13 }}>@{u.id} · {u.ts?new Date(u.ts).toLocaleString("ru-RU"):""}</div>
               </div>
-              <button onClick={()=>setPaid(u.id,!u.paid)} style={{ flex:"none", padding:"8px 12px", borderRadius:12, border:"none", cursor:"pointer", fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:13,
-                background:u.paid?C.mint:C.soft, color:u.paid?"#fff":C.violetD }}>{u.paid?"✓ оплатил":"отметить оплату"}</button>
+              <div style={{ display:"flex", gap:6, flex:"none", alignItems:"center" }}>
+                <button onClick={()=>setPaid(u.id,!u.paid)} style={{ padding:"8px 12px", borderRadius:12, border:"none", cursor:"pointer", fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:13,
+                  background:u.paid?C.mint:C.soft, color:u.paid?"#fff":C.violetD }}>{u.paid?"✓ оплатил":"отметить оплату"}</button>
+                <button onClick={()=>{ if(confirm("Удалить "+(u.name||u.id)+"?")) delUser(u.id); }} title="Удалить"
+                  style={{ padding:"8px 10px", borderRadius:12, border:`1px solid ${C.line}`, background:"#fff", cursor:"pointer", color:"#e0554b", fontSize:14 }}>🗑</button>
+              </div>
             </div>
           ))}
         </div>

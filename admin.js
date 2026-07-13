@@ -40,6 +40,11 @@ export default async function handler(req, res) {
       await redis(["HSET", "cifro:users", id, JSON.stringify(o)]);
       return res.status(200).json({ ok: true });
     }
+    if (action === "delUser") {
+      const { id } = req.body;
+      await redis(["HDEL", "cifro:users", id]);
+      return res.status(200).json({ ok: true });
+    }
     if (action === "setConfig") {
       const { kaspiLink, kaspiSubLink, appleLink, price, subPrice, promo, showHistory } = req.body;
       await redis(["SET", "cifro:config", JSON.stringify({
