@@ -1,0 +1,44 @@
+// api/oracle.js
+// Серверная функция-посредник для Vercel.
+// Ключ Anthropic хранится ТОЛЬКО здесь — в переменной окружения ANTHROPIC_API_KEY.
+// Клиент (браузер) обращается к /api/oracle и никогда не видит ключ.
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Только POST" });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res
+      .status(500)
+      .json({ error: "Не задан ANTHROPIC_API_KEY в переменных окружения Vercel" });
+  }
+
+  try {
+    const {
+      messages,
+      system,
+      max_tokens = 2000,
+      // Модель. Сейчас: Sonnet 5 (мощнее 4.6, по вводным ценам дешевле).
+      // Максимум качества: замени на "claude-opus-4-8" ($5/$25).
+      // Экономия на объёме: "claude-haiku-4-5-20251001" ($1/$5).
+      model = "claude-sonnet-5",
+    } = req.body || {};
+
+    const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model, max_tokens, system, messages }),
+    });
+
+    const data = await upstream.json();
+    return res.status(upstream.status).json(data);
+  } catch (e) {
+    return res.status(500).json({ error: "Ошибка обращения к ИИ" });
+  }
+}

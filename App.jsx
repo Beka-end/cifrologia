@@ -391,12 +391,12 @@ async function apiRedeem(code){ try{ const r=await fetch("/api/redeem",{method:"
 const SAFE = `Пиши тепло, по-доброму и с поддержкой, простым языком, на «ты». Давай глубокий, но понятный разбор и практические подсказки. Только позитивный, обнадёживающий настрой: никаких пугающих, фаталистичных или негативных предсказаний, никаких тем болезней с плохим исходом, смерти, вреда себе. Подчёркивай свободу выбора — это подсказки для размышления, а не приговор. Если человек делится тяжёлыми чувствами — мягко поддержи и по-доброму предложи опереться на близких или специалиста, без каких-либо инструкций.`;
 async function ask(messages, system){
   const langLine = LANG === "en"
-    ? " Respond in natural, warm English."
-    : " Отвечай на русском языке.";
+    ? " Respond in natural, warm English. Write plain flowing paragraphs, without any Markdown (no ##, **, ---, bullet or asterisk lists). Keep it complete and finish your thought."
+    : " Отвечай на русском языке. Пиши обычным живым текстом абзацами, без Markdown-разметки (никаких ##, **, ---, списков со звёздочками). Обязательно заверши мысль до конца.";
   try{
     const res = await fetch("/api/oracle",{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ system:(system||"")+langLine, messages, max_tokens:1000 }),
+      body:JSON.stringify({ system:(system||"")+langLine, messages, max_tokens:2000 }),
     });
     const data = await res.json();
     if(!data || !data.content) return t("Связь сейчас прервалась 🙏 Попробуй ещё разок через минутку.","Connection dropped 🙏 Please try again in a moment.");
