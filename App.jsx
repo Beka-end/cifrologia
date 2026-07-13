@@ -554,7 +554,7 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
       onAuthed({ login:id, name:name.trim(), dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false }); return;
     }
     if(r.ok){ setBusy(false); onAuthed({ login:id, name:r.profile.name, dob:r.profile.dob, paid:r.paid }); return; }
-    if(r.error==="badpass"){ setBusy(false); setMsg(t("Это имя уже занято. Введи правильный пароль или выбери другое имя.","This name is taken. Enter the correct password or choose another name.")); return; }
+    if(r.error==="badpass"){ setBusy(false); setMsg(t("Такой профиль уже есть в базе — введи правильный пароль. Если это не ты, выбери другое имя.","This profile already exists — enter the correct password. If it's not you, choose another name.")); return; }
     // пользователя нет → регистрируем (имя свободно)
     if(!validDob()){ setBusy(false); setMsg(t("Новое имя! Укажи дату рождения, чтобы создать профиль.","New name! Enter your birth date to create a profile.")); return; }
     const dob=`${+f.day}.${+f.month}.${+f.year}`;
