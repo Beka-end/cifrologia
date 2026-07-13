@@ -41,10 +41,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
     if (action === "setConfig") {
-      const { kaspiLink, kaspiSubLink, appleLink, price, subPrice, promo } = req.body;
+      const { kaspiLink, kaspiSubLink, appleLink, price, subPrice, promo, showHistory } = req.body;
       await redis(["SET", "cifro:config", JSON.stringify({
         kaspiLink: kaspiLink || "", kaspiSubLink: kaspiSubLink || "", appleLink: appleLink || "",
         price: price || "", subPrice: subPrice || "", promo: promo || "",
+        showHistory: showHistory !== false,
       })]);
       return res.status(200).json({ ok: true });
     }
@@ -53,4 +54,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Ошибка базы. Проверь, что подключён Redis (Upstash)." });
   }
 }
-
