@@ -1,4 +1,4 @@
-// api/redeem.js — секретный промокод (Turso)
+// api/status.js — оплатил ли пользователь (Turso)
 async function db(statements){
   const url = process.env.TURSO_DATABASE_URL || process.env.TURSO_URL;
   const token = process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN;
@@ -22,23 +22,13 @@ const ENSURE = [
   { sql:"CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)" },
 ];
 export default async function handler(req,res){
-  if(req.method!=="POST") return res.status(405).json({error:"POST only"});
   try{
-    const login=String((req.body&&req.body.id)||"").trim().toLowerCase();
-    const code=req.body&&req.body.code;
-    if(!login||!code) return res.status(200).json({ok:false});
-    const r=await db([...ENSURE,
-      { sql:"SELECT v FROM config WHERE k=?", args:["cifro:config"] },
-      { sql:"SELECT data FROM users WHERE login=?", args:[login] }]);
-    const crows=r[r.length-2], urows=r[r.length-1];
-    const cfg = crows.length ? JSON.parse(crows[0].v) : {};
-    if(cfg.promo && String(code).trim()===String(cfg.promo).trim()){
-      let rec = urows.length ? JSON.parse(urows[0].data) : { name:login, dob:"", ts:Date.now(), paid:false, plan:null };
-      rec.paid=true; rec.plan="promo";
-      if(urows.length) await db([{ sql:"UPDATE users SET data=? WHERE login=?", args:[JSON.stringify(rec), login] }]);
-      else await db([{ sql:"INSERT INTO users(login,data) VALUES(?,?)", args:[login, JSON.stringify(rec)] }]);
-      return res.status(200).json({ ok:true });
-    }
-    return res.status(200).json({ ok:false });
-  }catch(e){ return res.status(200).json({ ok:false }); }
+    const id=String(req.query.id||"").trim().toLowerCase();
+    if(!id) return res.status(200).json({paid:false});
+    const r=await db([...ENSURE,{ sql:"SELECT data FROM users WHERE login=?", args:[id] }]);
+    const rows=r[r.length-1];
+    if(!rows.length) return res.status(200).json({paid:false});
+    const o=JSON.parse(rows[0].data);
+    return res.status(200).json({ paid:!!o.paid, plan:o.plan||null });
+  }catch(e){ return res.status(200).json({paid:false}); }
 }
