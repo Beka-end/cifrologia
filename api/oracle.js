@@ -19,8 +19,11 @@ export default async function handler(req, res) {
     const {
       messages,
       system,
-      max_tokens = 1000,
-      model = "claude-sonnet-4-6", // можно сменить на "claude-haiku-4-5-20251001" ради экономии
+      max_tokens = 2500,
+      // Модель. Сейчас: Sonnet 5 (мощнее 4.6, по вводным ценам дешевле).
+      // Максимум качества: замени на "claude-opus-4-8" ($5/$25).
+      // Экономия на объёме: "claude-haiku-4-5-20251001" ($1/$5).
+      model = "claude-sonnet-5",
     } = req.body || {};
 
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
