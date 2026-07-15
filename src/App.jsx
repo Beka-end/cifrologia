@@ -1109,7 +1109,7 @@ function AdminPanel(){
         <h2 style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700 }}>🔐 Админка «Цифрология»</h2>
         <p style={{ ...pp, color:C.inkSoft, fontSize:15 }}>Введи пароль администратора (переменная ADMIN_PASSWORD на Vercel).</p>
         <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="Пароль" style={inpS}/>
-        <button onClick={login} style={{ ...bigBtn, marginTop:12 }}>Войти</button>
+        <button onClick={()=>login()} style={{ ...bigBtn, marginTop:12 }}>Войти</button>
         {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
         <a href="#" onClick={()=>{location.hash="";location.reload();}} style={{ display:"block", textAlign:"center", color:C.inkSoft, fontSize:14, marginTop:14 }}>← на сайт</a>
       </div>
