@@ -388,6 +388,7 @@ async function apiConfig(){ try{ const r=await fetch("/api/config"); return awai
 async function apiRedeem(code){ try{ const r=await fetch("/api/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:curLogin(),code})}); const d=await r.json(); return !!d.ok; }catch(e){ return false; } }
 
 // ---------- ИИ ----------
+const EXPERT = `Ты — опытный наставник «Цифрологии»: соединяешь нумерологию, астрологию, психологию и практику Сюцай с глубиной и точностью специалиста с многолетним опытом. Разбирай человека структурно и обоснованно — объясняй «почему именно так», связывай числа, знаки, стихию и характер в единую цельную картину. Пиши уверенно, профессионально и содержательно, как настоящий эксперт, но тепло, доступно и с уважением. Ты помощник для самопознания, а не врач: не ставь медицинских или психиатрических диагнозов и не назначай лечения.`;
 const SAFE = `Пиши тепло, по-доброму и с поддержкой, простым языком, на «ты». Давай глубокий, но понятный разбор и практические подсказки. Только позитивный, обнадёживающий настрой: никаких пугающих, фаталистичных или негативных предсказаний, никаких тем болезней с плохим исходом, смерти, вреда себе. Подчёркивай свободу выбора — это подсказки для размышления, а не приговор. Если человек делится тяжёлыми чувствами — мягко поддержи и по-доброму предложи опереться на близких или специалиста, без каких-либо инструкций.`;
 function cleanText(s){
   if(!s) return s;
@@ -515,7 +516,7 @@ export default function App(){
             background: lang===l?C.violet:"transparent", color: lang===l?"#fff":C.inkSoft }}>{l.toUpperCase()}</button>
         ))}
       </div>
-      <div style={{ position:"relative", zIndex:1, maxWidth:560, margin:"0 auto", padding:"22px 16px 56px" }}>
+      <div style={{ position:"relative", zIndex:1, maxWidth:560, margin:"0 auto", padding:"58px 16px 56px" }}>
         {stage==="intro"
           ? <Intro {...{onAuthed,account,enterSaved,logout,loaded}}/>
           : <Result {...{profile,tab,setTab,history,addHistory,delHistory,saveOn,premium,showHistory,
@@ -953,7 +954,7 @@ function TarotTab({ p,save,premium,openPaywall }){
 
 // ---------- ЧАТ (3 сообщения бесплатно) ----------
 function ChatTab({ p,premium,openPaywall,save }){
-  const sys=`Ты — добрый ассистент "Цифрология", помогаешь через нумерологию, астрологию и таро как тёплые инструменты самопознания (не медицина, не гарантии). Клиент: ${p.name}, знак ${p.sun.n} (${p.sun.el}), число пути ${p.lp}, восточный знак ${p.chinese}, личный год ${p.personalYearNow}. Отвечай тепло и по делу, 2-4 абзаца. ${SAFE}`;
+  const sys=`${EXPERT} Клиент: ${p.name}, знак ${p.sun.n} (${p.sun.el}), число пути ${p.lp}, восточный знак ${p.chinese}, личный год ${p.personalYearNow}. Отвечай тепло, глубоко и по делу, 2-4 абзаца. ${SAFE}`;
   const [msgs,setMsgs]=useState([{ role:"assistant", content:t(`Привет, ${p.name}! 🌿 Я тут, чтобы поддержать. О чём поговорим — отношения, дело, настроение, выбор?`,`Hi, ${p.name}! 🌿 I am here to support you. What shall we talk about — relationships, work, mood, a choice?`) }]);
   const [input,setInput]=useState(""); const [loading,setLoading]=useState(false);
   const endRef=useRef(null);
@@ -1027,7 +1028,7 @@ function AISection({ p,title,cta,prompt,save,histType,premium,openPaywall,sys })
   );
   const gen=async(again)=>{ setLoading(true); setSaved(false);
     const extra = again ? (LANG==="en" ? "\n\nGive a fresh, new perspective — do not repeat the previous reading, reveal something more." : "\n\nДай свежий, новый взгляд — не повторяй прошлый разбор, раскрой что-то ещё.") : "";
-    const r=await ask([{role:"user",content:prompt+extra}], sys || `Ты — добрый ассистент "Цифрология". ${SAFE}`); setText(r); setLoading(false); };
+    const r=await ask([{role:"user",content:prompt+extra}], sys || `${EXPERT} ${SAFE}`); setText(r); setLoading(false); };
   return (
     <Card>
       <h3 style={h3}>✨ {title}</h3>
