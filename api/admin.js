@@ -11,11 +11,12 @@ async function db(statements){
     headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" },
     body: JSON.stringify({ requests }) });
   const d = await r.json();
-  return (d.results||[]).map(res=>{
-    if(!res||res.type!=="ok"||!res.response||res.response.type!=="execute") return [];
-    const result=res.response.result||{}; const cols=(result.cols||[]).map(c=>c.name);
-    return (result.rows||[]).map(row=>{ const o={}; row.forEach((cell,i)=>{ o[cols[i]]=(cell&&cell.type==="null")?null:(cell?cell.value:null); }); return o; });
-  });
+  return (d.results||[])
+    .filter(x=> x && x.type==="ok" && x.response && x.response.type==="execute")
+    .map(res=>{
+      const result=res.response.result||{}; const cols=(result.cols||[]).map(c=>c.name);
+      return (result.rows||[]).map(row=>{ const o={}; row.forEach((cell,i)=>{ o[cols[i]]=(cell&&cell.type==="null")?null:(cell?cell.value:null); }); return o; });
+    });
 }
 const ENSURE = [
   { sql:"CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, data TEXT)" },
