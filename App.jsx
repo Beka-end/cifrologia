@@ -469,6 +469,12 @@ export default function App(){
     setLoaded(true);
   })(); },[]);
 
+  useEffect(()=>{
+    if(stage!=="result") return;
+    const ping=()=>{ fetch("/api/ping",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:curLogin()})}).catch(()=>{}); };
+    ping(); const tmr=setInterval(ping,30000); return ()=>clearInterval(tmr);
+  },[stage]);
+
   const build=(name,d,m,y)=>{
     const sun=sunSign(d,m), lp=lifePath(d,m,y), now=new Date().getFullYear();
     return { name,d,m,y,sun,lp, soul:reduce(d,false), chinese:chineseSign(y), personalYearNow:personalYear(d,m,now),
@@ -1086,11 +1092,13 @@ function Paywall({ onClose,onUnlock }){
 // ---------- АДМИНКА ----------
 function AdminPanel(){
   const [pass,setPass]=useState(""); const [authed,setAuthed]=useState(false);
-  const [users,setUsers]=useState([]); const [cfg,setCfg]=useState({}); const [msg,setMsg]=useState("");
+  const [users,setUsers]=useState([]); const [cfg,setCfg]=useState({}); const [msg,setMsg]=useState(""); const [online,setOnline]=useState(0);
   const call=(body)=>fetch("/api/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  const login=async()=>{ const r=await call({password:pass,action:"list"}); if(r.status!==200){ setMsg("Неверный пароль или база не подключена"); return; } const d=await r.json(); setUsers(d.users||[]); setCfg(d.config||{}); setAuthed(true); setMsg(""); };
+  const login=async(p)=>{ const pw=p||pass; const r=await call({password:pw,action:"list"}); if(r.status!==200){ setMsg("Неверный пароль или база не подключена"); return; } const d=await r.json(); setUsers(d.users||[]); setCfg(d.config||{}); setOnline(d.onlineCount||0); setAuthed(true); setMsg(""); };
+  useEffect(()=>{ if(!authed) return; const id=setInterval(()=>login(),20000); return ()=>clearInterval(id); },[authed,pass]);
   const setPaid=async(id,paid)=>{ await call({password:pass,action:"setPaid",id,paid}); login(); };
   const delUser=async(id)=>{ await call({password:pass,action:"delUser",id}); login(); };
+  const editUser=async(u)=>{ const name=prompt("Имя:",u.name||""); if(name===null)return; const dob=prompt("Дата рождения (ДД.ММ.ГГГГ):",u.dob||""); if(dob===null)return; await call({password:pass,action:"setUser",id:u.id,name,dob}); login(); };
   const saveCfg=async()=>{ await call({password:pass,action:"setConfig",kaspiLink:cfg.kaspiLink,appleLink:cfg.appleLink,price:cfg.price,promo:cfg.promo,showHistory:cfg.showHistory!==false}); setMsg("Настройки сохранены ✓"); };
   const paidCount=users.filter(u=>u.paid).length;
   const box={ minHeight:"100vh", background:"#f6f2ff", fontFamily:"'Nunito',sans-serif", color:C.ink, padding:"24px 16px" };
@@ -1111,7 +1119,7 @@ function AdminPanel(){
     <div style={box}><Fonts/>
       <div style={{ maxWidth:720, margin:"0 auto" }}>
         <h2 style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, marginBottom:4 }}>📊 Админка</h2>
-        <p style={{ color:C.inkSoft, marginBottom:16 }}>Всего: <b>{users.length}</b> · Оплатили: <b style={{color:C.mint}}>{paidCount}</b></p>
+        <p style={{ color:C.inkSoft, marginBottom:16 }}>Всего: <b>{users.length}</b> · Оплатили: <b style={{color:C.mint}}>{paidCount}</b> · <span style={{color:C.mint}}>🟢 сейчас на сайте: <b>{online}</b></span></p>
 
         <div style={{ background:"#fff", borderRadius:18, padding:18, border:`1px solid ${C.line}`, marginBottom:16 }}>
           <h3 style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, margin:"0 0 8px" }}>⚙️ Настройка оплаты Kaspi</h3>
@@ -1139,12 +1147,17 @@ function AdminPanel(){
           {users.map(u=>(
             <div key={u.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.line}`, gap:10 }}>
               <div style={{ minWidth:0 }}>
-                <div style={{ fontWeight:700 }}>{u.name||"—"} <span style={{ color:C.inkSoft, fontWeight:400 }}>· {u.dob||""}</span></div>
+                <div style={{ fontWeight:700 }}>
+                  <span style={{ color:u.online?C.mint:"#d8d3e6", fontSize:12 }}>●</span> {u.name||"—"} <span style={{ color:C.inkSoft, fontWeight:400 }}>· {u.dob||""}</span>
+                  {u.online && <span style={{ color:C.mint, fontSize:12, fontWeight:700, marginLeft:6 }}>онлайн</span>}
+                </div>
                 <div style={{ color:C.inkSoft, fontSize:13 }}>@{u.id} · {u.ts?new Date(u.ts).toLocaleString("ru-RU"):""}</div>
               </div>
               <div style={{ display:"flex", gap:6, flex:"none", alignItems:"center" }}>
                 <button onClick={()=>setPaid(u.id,!u.paid)} style={{ padding:"8px 12px", borderRadius:12, border:"none", cursor:"pointer", fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:13,
                   background:u.paid?C.mint:C.soft, color:u.paid?"#fff":C.violetD }}>{u.paid?"✓ оплатил":"отметить оплату"}</button>
+                <button onClick={()=>editUser(u)} title="Редактировать"
+                  style={{ padding:"8px 10px", borderRadius:12, border:`1px solid ${C.line}`, background:"#fff", cursor:"pointer", color:C.violetD, fontSize:14 }}>✏️</button>
                 <button onClick={()=>{ if(confirm("Удалить "+(u.name||u.id)+"?")) delUser(u.id); }} title="Удалить"
                   style={{ padding:"8px 10px", borderRadius:12, border:`1px solid ${C.line}`, background:"#fff", cursor:"pointer", color:"#e0554b", fontSize:14 }}>🗑</button>
               </div>

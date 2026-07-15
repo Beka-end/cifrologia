@@ -1,4 +1,4 @@
-// api/admin.js — админка (Turso)
+// api/admin.js — админка (Turso): список, онлайн, оплата, редактирование, удаление
 async function db(statements){
   const url = process.env.TURSO_DATABASE_URL || process.env.TURSO_URL;
   const token = process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN;
@@ -20,6 +20,7 @@ async function db(statements){
 const ENSURE = [
   { sql:"CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, data TEXT)" },
   { sql:"CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)" },
+  { sql:"CREATE TABLE IF NOT EXISTS presence (login TEXT PRIMARY KEY, seen TEXT)" },
 ];
 export default async function handler(req,res){
   if(req.method!=="POST") return res.status(405).json({error:"POST only"});
@@ -29,13 +30,17 @@ export default async function handler(req,res){
     if(action==="list"){
       const r=await db([...ENSURE,
         { sql:"SELECT login,data FROM users" },
-        { sql:"SELECT v FROM config WHERE k=?", args:["cifro:config"] }]);
-      const urows=r[r.length-2], crows=r[r.length-1];
+        { sql:"SELECT v FROM config WHERE k=?", args:["cifro:config"] },
+        { sql:"SELECT login,seen FROM presence" }]);
+      const urows=r[r.length-3], crows=r[r.length-2], prows=r[r.length-1];
+      const now=Date.now(), ONLINE=120000;
+      const seenMap={}; for(const p of prows){ seenMap[p.login]=+p.seen||0; }
       const users=[];
-      for(const row of urows){ try{ users.push({ id:row.login, ...JSON.parse(row.data) }); }catch(e){} }
-      users.sort((a,b)=>(b.ts||0)-(a.ts||0));
+      for(const row of urows){ try{ const o=JSON.parse(row.data);
+        users.push({ id:row.login, ...o, online:(now-(seenMap[row.login]||0))<ONLINE, lastSeen:seenMap[row.login]||0 }); }catch(e){} }
+      users.sort((a,b)=>(b.online?1:0)-(a.online?1:0) || (b.ts||0)-(a.ts||0));
       const config = crows.length ? JSON.parse(crows[0].v) : {};
-      return res.status(200).json({ users, config });
+      return res.status(200).json({ users, config, onlineCount: users.filter(u=>u.online).length });
     }
     if(action==="setPaid"){
       const { id, paid, plan } = req.body;
@@ -46,8 +51,21 @@ export default async function handler(req,res){
       await db([{ sql:"UPDATE users SET data=? WHERE login=?", args:[JSON.stringify(o), id] }]);
       return res.status(200).json({ ok:true });
     }
+    if(action==="setUser"){
+      const { id, name, dob } = req.body;
+      const r=await db([...ENSURE,{ sql:"SELECT data FROM users WHERE login=?", args:[id] }]);
+      const rows=r[r.length-1];
+      if(!rows.length) return res.status(404).json({error:"нет пользователя"});
+      const o=JSON.parse(rows[0].data);
+      if(name!==undefined && name!==null) o.name=name;
+      if(dob!==undefined && dob!==null) o.dob=dob;
+      await db([{ sql:"UPDATE users SET data=? WHERE login=?", args:[JSON.stringify(o), id] }]);
+      return res.status(200).json({ ok:true });
+    }
     if(action==="delUser"){
-      await db([...ENSURE,{ sql:"DELETE FROM users WHERE login=?", args:[req.body.id] }]);
+      await db([...ENSURE,
+        { sql:"DELETE FROM users WHERE login=?", args:[req.body.id] },
+        { sql:"DELETE FROM presence WHERE login=?", args:[req.body.id] }]);
       return res.status(200).json({ ok:true });
     }
     if(action==="setConfig"){
