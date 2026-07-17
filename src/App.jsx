@@ -29,7 +29,70 @@ const grad = `linear-gradient(135deg,${C.violet},${C.coral})`;
 
 // ---------- ЯЗЫК / LANGUAGE ----------
 let LANG = (typeof localStorage !== "undefined" && localStorage.getItem("cifro:lang")) || "ru";
-const t = (ru, en) => (LANG === "en" ? en : ru);
+let LANGS = [{code:"ru",label:"RU"},{code:"en",label:"EN"},{code:"kk",label:"ҚАЗ"},{code:"zh",label:"中文"}];
+const TX = {}; // TX[ru] = { en, kk, zh, ...любой код языка }
+const t = (ru, en) => {
+  if (LANG === "ru") return ru;
+  const row = TX[ru] || {};
+  if (LANG === "en") return row.en || en;
+  return row[LANG] || ru;
+};
+// ---------- КАЗАХСКИЙ (перевод интерфейса; чего нет — показывается по-русски) ----------
+const KK = {
+  "Цифрология":"Цифрология",
+  "тёплый разбор тебя по дате рождения":"туған күнің бойынша жылы талдау",
+  "Введи имя (латинскими буквами) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.":"Атыңды (латын әріптерімен) және құпиясөзді енгіз. Жаңа ат — профиль ашамыз, бар болса — құпиясөз сұраймыз.",
+  "Имя (буквы, уникальное)":"Ат (әріптер, бірегей)","Пароль":"Құпиясөз","Дата рождения":"Туған күні",
+  "📅 из списка":"📅 тізімнен","⌨️ вручную":"⌨️ қолмен","ДД":"КК","ММ":"АА","ГГГГ":"ЖЖЖЖ","День":"Күн","Мес":"Ай","Год":"Жыл",
+  "Узнать о себе ✨":"Өзің туралы білу ✨","Минутку…":"Бір сәт…","С возвращением,":"Қайта келгеніңмен,",
+  "Открыть мой профиль":"Профилімді ашу","Войти под другим именем":"Басқа атпен кіру",
+  "Имя (латинские буквы), минимум 3 символа.":"Ат (латын әріптері), кемінде 3 таңба.","Пароль: минимум 4 символа.":"Құпиясөз: кемінде 4 таңба.",
+  "Проверь дату рождения.":"Туған күнін тексер.","Такой профиль уже есть в базе — введи правильный пароль. Если это не ты, выбери другое имя.":"Мұндай профиль базада бар — дұрыс құпиясөзді енгіз. Егер бұл сен болмасаң, басқа ат таңда.",
+  "Новое имя! Укажи дату рождения, чтобы создать профиль.":"Жаңа ат! Профиль ашу үшін туған күнін көрсет.",
+  "✨ Профиль":"✨ Профиль","🪔 Натал":"🪔 Натал","☯️ Сюцай":"☯️ Сюцай","🔢 Матрица":"🔢 Матрица","☀️ День":"☀️ Күн","🗓️ Прогноз":"🗓️ Болжам","💞 Пара":"💞 Жұп","💼 Работа":"💼 Жұмыс","💡 Лайфхаки":"💡 Кеңестер","🃏 Таро":"🃏 Таро","💬 Чат":"💬 Чат","📁 Кабинет":"📁 Кабинет",
+  "← выход":"← шығу","★ Премиум":"★ Премиум","★ Премиум активен":"★ Премиум белсенді",
+  "Знак":"Белгі","Душа":"Жан","Путь":"Жол","Число жизненного пути":"Өмір жолы саны","Число души":"Жан саны","Год по восточному календарю":"Шығыс күнтізбесі жылы",
+  "Подробный персональный разбор доступен в премиуме.":"Толық жеке талдау премиумда қолжетімді.","★ Открыть полный доступ":"★ Толық қолжетімділік","↻ Узнать ещё":"↻ Тағы білу","💾 Сохранить":"💾 Сақтау","Сохранено ✓":"Сақталды ✓","Думаю…":"Ойланудамын…",
+  "Премиум-доступ":"Премиум-қолжетімділік","Подписка":"Жазылым","Оплатить через Kaspi":"Kaspi арқылы төлеу","Оформить подписку":"Жазылу","Я оплатил — проверить доступ":"Төледім — тексеру","Есть промокод?":"Промокод бар ма?","Введите промокод":"Промокод енгіз","Применить":"Қолдану","Позже":"Кейінірек","ПОЛНЫЙ ДОСТУП":"ТОЛЫҚ ҚОЛЖЕТІМДІЛІК",
+  "Проверяю…":"Тексерудемін…","печатает…":"жазып жатыр…","Сегодня осталfirсь":"Бүгін қалды","На сегодня бесплатные вопросы закончились 🙂 Новые — завтра. В премиуме — общение без ограничений.":"Бүгінге тегін сұрақтар бітті 🙂 Жаңасы — ертең. Премиумда — шексіз әңгіме.",
+  "★ Открыть премиум":"★ Премиум ашу","Напиши вопрос…":"Сұрақ жаз…","Сегодня осталось":"Бүгін қалды","вопр.":"сұрақ",
+  "Проверить совместимость":"Үйлесімділікті тексеру","Кто твой партнёр?":"Серігің кім?","Сменить партнёра":"Серікті ауыстыру","Вытянуть карты":"Карталарды тарту","Перетянуть":"Қайта тарту","Хочу стишок ✨":"Өлең қалаймын ✨","Посмеши меня":"Күлдір мені",
+  "стихия":"стихия","Позже":"Кейінірек",
+};
+// ---------- УПРОЩЁННЫЙ КИТАЙСКИЙ ----------
+const ZH = {
+  "Цифрология":"数字学",
+  "тёплый разбор тебя по дате рождения":"根据你的出生日期为你做温暖的解读",
+  "Введи имя (латинскими буквами) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.":"请输入用户名（拉丁字母）和密码。新用户名将创建档案，已有的会要求输入密码。",
+  "Имя (буквы, уникальное)":"用户名（字母，唯一）","Пароль":"密码","Дата рождения":"出生日期",
+  "📅 из списка":"📅 从列表","⌨️ вручную":"⌨️ 手动","ДД":"日","ММ":"月","ГГГГ":"年","День":"日","Мес":"月","Год":"年",
+  "Узнать о себе ✨":"了解自己 ✨","Минутку…":"稍等…","С возвращением,":"欢迎回来，",
+  "Открыть мой профиль":"打开我的档案","Войти под другим именем":"用其他用户名登录",
+  "Имя (латинские буквы), минимум 3 символа.":"用户名（拉丁字母），至少3个字符。","Пароль: минимум 4 символа.":"密码：至少4个字符。",
+  "Проверь дату рождения.":"请检查出生日期。","Такой профиль уже есть в базе — введи правильный пароль. Если это не ты, выбери другое имя.":"该档案已存在——请输入正确密码。如果不是你，请换一个用户名。",
+  "Новое имя! Укажи дату рождения, чтобы создать профиль.":"新用户名！请填写出生日期以创建档案。",
+  "✨ Профиль":"✨ 档案","🪔 Натал":"🪔 星盘","☯️ Сюцай":"☯️ 秀才","🔢 Матрица":"🔢 矩阵","☀️ День":"☀️ 今日","🗓️ Прогноз":"🗓️ 预测","💞 Пара":"💞 配对","💼 Работа":"💼 事业","💡 Лайфхаки":"💡 生活建议","🃏 Таро":"🃏 塔罗","💬 Чат":"💬 聊天","📁 Кабинет":"📁 我的",
+  "← выход":"← 退出","★ Премиум":"★ 高级版","★ Премиум активен":"★ 高级版已开通",
+  "Знак":"星座","Душа":"灵魂","Путь":"生命","Число жизненного пути":"生命历程数","Число души":"灵魂数","Год по восточному календарю":"生肖年",
+  "Подробный персональный разбор доступен в премиуме.":"详细的个人解读在高级版中提供。","★ Открыть полный доступ":"★ 解锁完整权限","↻ Узнать ещё":"↻ 换一个","💾 Сохранить":"💾 保存","Сохранено ✓":"已保存 ✓","Думаю…":"思考中…",
+  "Премиум-доступ":"高级版权限","Подписка":"订阅","Оплатить через Kaspi":"通过 Kaspi 支付","Оформить подписку":"订阅","Я оплатил — проверить доступ":"我已支付——检查权限","Есть промокод?":"有优惠码吗？","Введите промокод":"输入优惠码","Применить":"使用","Позже":"稍后","ПОЛНЫЙ ДОСТУП":"完整权限",
+  "Проверяю…":"检查中…","печатает…":"正在输入…","На сегодня бесплатные вопросы закончились 🙂 Новые — завтра. В премиуме — общение без ограничений.":"今天的免费提问已用完 🙂 明天再来。高级版可无限畅聊。",
+  "★ Открыть премиум":"★ 开通高级版","Напиши вопрос…":"输入问题…","Сегодня осталось":"今日剩余","вопр.":"个",
+  "Проверить совместимость":"检查配对","Кто твой партнёр?":"你的另一半是谁？","Сменить партнёра":"更换伴侣","Вытянуть карты":"抽牌","Перетянуть":"重新抽牌","Хочу стишок ✨":"来首小诗 ✨","Посмеши меня":"逗我笑",
+  "стихия":"元素",
+};
+// начальное заполнение из встроенных словарей
+for(const k in KK){ (TX[k]=TX[k]||{}).kk=KK[k]; }
+for(const k in ZH){ (TX[k]=TX[k]||{}).zh=ZH[k]; }
+function mergeTx(data){ if(!data) return; for(const ru in data){ const tr=data[ru]||{}; const row=TX[ru]||(TX[ru]={}); for(const lang in tr){ if(tr[lang]) row[lang]=tr[lang]; } } }
+// Подгрузка переводов: сначала файл-основа, затем правки из базы (админка)
+async function loadTranslations(){
+  let ok=false;
+  try{ const r=await fetch("/translations.json",{cache:"no-store"}); mergeTx(await r.json()); ok=true; }catch(e){}
+  try{ const r=await fetch("/api/i18n",{cache:"no-store"}); const d=await r.json();
+    if(d){ if(Array.isArray(d.langs)&&d.langs.length) LANGS=d.langs; mergeTx(d.tx); } ok=true; }catch(e){}
+  return ok;
+}
 
 // ---------- ДАННЫЕ ----------
 const ZODIAC = [
@@ -405,16 +468,19 @@ function cleanText(s){
     .replace(/[ \t]+\n/g, "\n")            // хвостовые пробелы
     .replace(/(\n\s*){2,}/g, "\n\n")       // схлопнуть пустые строки в один отступ
     .trim();
-  if(!/[.!?…»)"']$/.test(x)){              // если текст оборвался на полуслове
-    const i = Math.max(x.lastIndexOf("."),x.lastIndexOf("!"),x.lastIndexOf("?"),x.lastIndexOf("…"),x.lastIndexOf("»"));
+  if(!/[.!?…»)"'。！？]$/.test(x)){              // если текст оборвался на полуслове
+    const i = Math.max(x.lastIndexOf("."),x.lastIndexOf("!"),x.lastIndexOf("?"),x.lastIndexOf("…"),x.lastIndexOf("»"),x.lastIndexOf("。"),x.lastIndexOf("！"),x.lastIndexOf("？"));
     if(i>40) x = x.slice(0,i+1).trim();
   }
   return x;
 }
 async function ask(messages, system){
-  const langLine = LANG === "en"
-    ? " Respond in warm, natural English. Be compact: 3-5 short paragraphs, no Markdown (no ##, **, ---, asterisk lists) and no big empty gaps between lines. Always finish with a complete closing sentence — never stop mid-thought or mid-word."
-    : " Отвечай на русском языке. Пиши компактно: 3–5 небольших абзацев, без Markdown-разметки (никаких ##, **, ---, списков со звёздочками) и без больших пустых отступов между строками. Обязательно заверши текст цельным финальным предложением — не обрывайся на полуслове.";
+  const FMT_EN = " Be compact: 3-5 short paragraphs, no Markdown (no ##, **, ---, asterisk lists) and no big empty gaps. Always finish with a complete closing sentence.";
+  const langLine =
+    LANG === "en" ? " Respond in warm, natural English." + FMT_EN
+  : LANG === "kk" ? " Жауапты қазақ тілінде, жылы әрі табиғи тілмен жаз. Ықшам жаз: 3-5 шағын абзац, Markdown белгілерінсіз (##, **, ---, жұлдызшалы тізімдерсіз). Соңғы сөйлемді міндетті түрде толық аяқта."
+  : LANG === "zh" ? " 请用简体中文、温暖自然地回答。简洁一些：3-5个短段落，不要使用Markdown（不要##、**、---或星号列表）。务必用完整的句子结尾。"
+  : " Отвечай на русском языке. Пиши компактно: 3–5 небольших абзацев, без Markdown-разметки (никаких ##, **, ---, списков со звёздочками) и без больших пустых отступов между строками. Обязательно заверши текст цельным финальным предложением — не обрывайся на полуслове.";
   try{
     const res = await fetch("/api/oracle",{
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -485,6 +551,8 @@ export default function App(){
   const [paywall,setPaywall]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const [showHistory,setShowHistory]=useState(true);
+  const [, setI18n]=useState(0);
+  useEffect(()=>{ loadTranslations().then(ok=>{ if(ok) setI18n(v=>v+1); }); },[]);
   const [lang,setLangState]=useState(LANG);
   const setLang=(l)=>{ LANG=l; try{localStorage.setItem("cifro:lang",l);}catch(e){} setLangState(l); };
   LANG = lang;
@@ -538,10 +606,10 @@ export default function App(){
       fontFamily:"'Nunito',sans-serif", position:"relative", color:C.ink }}>
       <Fonts/><Blobs/>
       <div style={{ position:"absolute", top:14, right:14, zIndex:2, display:"flex", gap:4, background:"#fff", border:`1px solid ${C.line}`, borderRadius:20, padding:3 }}>
-        {["ru","en"].map(l=>(
-          <button key={l} onClick={()=>setLang(l)} style={{ border:"none", cursor:"pointer", borderRadius:16, padding:"5px 11px",
-            fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:12.5,
-            background: lang===l?C.violet:"transparent", color: lang===l?"#fff":C.inkSoft }}>{l.toUpperCase()}</button>
+        {LANGS.map(({code,label})=>(
+          <button key={code} onClick={()=>setLang(code)} style={{ border:"none", cursor:"pointer", borderRadius:16, padding:"5px 9px",
+            fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:12,
+            background: lang===code?C.violet:"transparent", color: lang===code?"#fff":C.inkSoft }}>{label}</button>
         ))}
       </div>
       <div style={{ position:"relative", zIndex:1, maxWidth:560, margin:"0 auto", padding:"58px 16px 56px" }}>
@@ -564,7 +632,7 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
   const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false);
   const [dateMode,setDateMode]=useState("manual");
   const monthRef=useRef(null), yearRef=useRef(null);
-  const nameSan=(v)=>v.replace(/[^a-zA-Z]/g,"");           // только латинские буквы, регистр сохраняем
+  const nameSan=(v)=>v.replace(/[^\p{L}\p{N} _.\-]/gu,"");   // буквы (любые), цифры, пробел и простые символы; регистр сохраняем
   const inpBase={ padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
     border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" };
   const field=(val,set,ph,type,max)=>(
@@ -591,7 +659,7 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
     setMsg("");
     const disp=name.trim();
     const id=disp.toLowerCase();
-    if(id.length<3){ setMsg(t("Имя (латинские буквы), минимум 3 символа.","Name (latin letters), at least 3 characters.")); return; }
+    if(id.length<2){ setMsg(t("Имя: минимум 2 символа.","Name: at least 2 characters.")); return; }
     if(pass.length<4){ setMsg(t("Пароль: минимум 4 символа.","Password: at least 4 characters.")); return; }
     setBusy(true);
     let r=await authApi("login",{login:id,password:pass});
@@ -631,9 +699,9 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
 
       <Card>
         <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>
-          {t("Введи имя (латинскими буквами) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.","Enter a name (latin letters) and password. A new name creates a profile, an existing one asks for the password.")}
+          {t("Введи имя и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.","Enter a name and password. A new name creates a profile, an existing one asks for the password.")}
         </p>
-        {field(name,(v)=>setName(nameSan(v)),t("Имя (буквы, уникальное)","Name (letters, unique)"),"text",20)}
+        {field(name,(v)=>setName(nameSan(v)),t("Имя (уникальное)","Name (unique)"),"text",30)}
         {field(pass,setPass,t("Пароль","Password"),"password",40)}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
           <span style={{ color:C.inkSoft, fontSize:14 }}>{t("Дата рождения","Birth date")}</span>
