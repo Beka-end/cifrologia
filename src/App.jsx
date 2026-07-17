@@ -12,6 +12,7 @@ const Fonts = () => (
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     @keyframes floatUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
     @keyframes blob{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(12px,-14px) scale(1.07)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes pop{0%{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
     .reveal{animation:floatUp .5s ease both}
     .scrollbox::-webkit-scrollbar{width:6px}.scrollbox::-webkit-scrollbar-thumb{background:#e0d8f2;border-radius:3px}
@@ -40,6 +41,10 @@ const ZODIAC = [
   { n:"Водолей",s:"♒",from:[1,20],to:[2,18],el:"Воздух" },{ n:"Рыбы",s:"♓",from:[2,19],to:[3,20],el:"Вода" },
 ];
 const CHINESE = ["Крыса","Бык","Тигр","Кролик","Дракон","Змея","Лошадь","Коза","Обезьяна","Петух","Собака","Свинья"];
+const SIGNMOJI = { "Овен":"🐏","Телец":"🐂","Близнецы":"👯","Рак":"🦀","Лев":"🦁","Дева":"🌾","Весы":"⚖️","Скорпион":"🦂","Стрелец":"🏹","Козерог":"🐐","Водолей":"🏺","Рыбы":"🐟" };
+const ELEMOJI = { "Огонь":"🔥","Земля":"🌍","Воздух":"🌬️","Вода":"💧" };
+const pad2 = (n)=>String(n).padStart(2,"0");
+const fmtDate = (d,m,y)=>`${pad2(d)}.${pad2(m)}.${y}`;
 const LIFE_PATH = {
   1:"Лидер. Независимость, инициатива, воля. Твой путь — быть первым и вести за собой.",
   2:"Дипломат. Чуткость, партнёрство, интуиция. Сила — в союзах и умении слышать.",
@@ -434,6 +439,29 @@ const Card = ({ children, style }) => (
   <div className="reveal" style={{ background:C.card, border:`1px solid ${C.line}`, borderRadius:22,
     padding:20, boxShadow:"0 8px 30px rgba(90,70,160,.08)", ...style }}>{children}</div>
 );
+const Spinner = ({ color })=>(
+  <span style={{ display:"inline-block", width:16, height:16, verticalAlign:"-2px",
+    border:`2px solid ${color||"#fff"}`, borderTopColor:"transparent", borderRadius:"50%",
+    animation:"spin .7s linear infinite", marginRight:8 }} />
+);
+// разбить текст на строки-буллеты по предложениям
+const Bulleted = ({ text, style })=>{
+  const parts = String(text||"").split(/(?<=[.!?;])\s+/).map(s=>s.trim().replace(/[.;]+$/,"")).filter(Boolean);
+  if(parts.length<2) return <p style={{ ...pp, ...style }}>{text}</p>;
+  return (
+    <div style={{ ...pp, ...style }}>
+      {parts.map((s,i)=>(
+        <div key={i} style={{ display:"flex", gap:8, marginTop:i?4:0 }}>
+          <span style={{ color:C.violet, flex:"none" }}>•</span><span>{s}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+// сохранение ИИ-разборов между вкладками и перезагрузкой
+const rdKey = (title)=>`cifro:rd:${curLogin()}:${title}`;
+const loadReading = (title)=>{ try{ return localStorage.getItem(rdKey(title))||""; }catch(e){ return ""; } };
+const saveReading = (title,text)=>{ try{ if(text) localStorage.setItem(rdKey(title),text); }catch(e){} };
 const h3 = { fontFamily:"'Quicksand',sans-serif", color:C.ink, fontSize:18, margin:"0 0 6px", fontWeight:700 };
 const pp = { fontSize:16.5, lineHeight:1.6, color:C.ink, margin:0, fontFamily:"'Nunito',sans-serif" };
 const bigBtn = { width:"100%", padding:"14px", borderRadius:16, border:"none", cursor:"pointer",
@@ -534,40 +562,52 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
   const [pass,setPass]=useState("");
   const [f,setF]=useState({ day:"", month:"", year:"" });
   const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false);
-  const clean=(v)=>v.toLowerCase().replace(/[^a-z0-9_]/g,"");
+  const [dateMode,setDateMode]=useState("manual");
+  const monthRef=useRef(null), yearRef=useRef(null);
+  const nameSan=(v)=>v.replace(/[^a-zA-Z]/g,"");           // только латинские буквы, регистр сохраняем
+  const inpBase={ padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
+    border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" };
   const field=(val,set,ph,type,max)=>(
     <input value={val} placeholder={ph} type={type||"text"} maxLength={max}
       onChange={e=>set(e.target.value)}
-      style={{ width:"100%", padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
-        border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none", marginTop:8 }}/>
+      style={{ ...inpBase, width:"100%", marginTop:8 }}/>
   );
-  const num=(k,ph,max)=>(
-    <input value={f[k]} placeholder={ph} inputMode="numeric" maxLength={max}
-      onChange={e=>setF({...f,[k]:e.target.value.replace(/\D/g,"")})}
-      style={{ flex:1, minWidth:0, padding:"13px 14px", borderRadius:14, fontSize:16.5, background:C.soft,
-        border:`2px solid ${C.line}`, color:C.ink, fontFamily:"inherit", outline:"none" }}/>
+  const num=(k,ph,max,nextRef,selfRef)=>(
+    <input ref={selfRef} value={f[k]} placeholder={ph} inputMode="numeric" maxLength={max}
+      onChange={e=>{ const v=e.target.value.replace(/\D/g,""); setF({...f,[k]:v}); if(v.length>=max && nextRef && nextRef.current) nextRef.current.focus(); }}
+      style={{ ...inpBase, flex:1, minWidth:0 }}/>
   );
-  const validDob=()=>{ const d=+f.day,m=+f.month,y=+f.year; return d>=1&&d<=31&&m>=1&&m<=12&&y>=1900&&y<=2025; };
+  const sel=(k,list,ph,showZero)=>(
+    <select value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={{ ...inpBase, flex:1, minWidth:0, appearance:"auto", colorScheme:"light" }}>
+      <option value="">{ph}</option>
+      {list.map(n=><option key={n} value={String(n)}>{showZero?pad2(n):n}</option>)}
+    </select>
+  );
+  const days=[...Array(31)].map((_,i)=>i+1);
+  const months=[...Array(12)].map((_,i)=>i+1);
+  const years=[...Array(2050-1920+1)].map((_,i)=>2050-i);
+  const validDob=()=>{ const d=+f.day,m=+f.month,y=+f.year; return d>=1&&d<=31&&m>=1&&m<=12&&y>=1900&&y<=2050; };
   const go=async()=>{
     setMsg("");
-    const id=clean(name);
-    if(id.length<3){ setMsg(t("Имя (латиница), минимум 3 символа.","Name (latin), at least 3 characters.")); return; }
+    const disp=name.trim();
+    const id=disp.toLowerCase();
+    if(id.length<3){ setMsg(t("Имя (латинские буквы), минимум 3 символа.","Name (latin letters), at least 3 characters.")); return; }
     if(pass.length<4){ setMsg(t("Пароль: минимум 4 символа.","Password: at least 4 characters.")); return; }
     setBusy(true);
     let r=await authApi("login",{login:id,password:pass});
     if(r.error==="db"||r.error==="net"){ // база не подключена — гостевой режим
       setBusy(false);
       if(!validDob()){ setMsg(t("Проверь дату рождения.","Check the birth date.")); return; }
-      onAuthed({ login:id, name:name.trim(), dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false }); return;
+      onAuthed({ login:id, name:disp, dob:`${+f.day}.${+f.month}.${+f.year}`, paid:false }); return;
     }
     if(r.ok){ setBusy(false); onAuthed({ login:id, name:r.profile.name, dob:r.profile.dob, paid:r.paid }); return; }
     if(r.error==="badpass"){ setBusy(false); setMsg(t("Такой профиль уже есть в базе — введи правильный пароль. Если это не ты, выбери другое имя.","This profile already exists — enter the correct password. If it's not you, choose another name.")); return; }
     // пользователя нет → регистрируем (имя свободно)
     if(!validDob()){ setBusy(false); setMsg(t("Новое имя! Укажи дату рождения, чтобы создать профиль.","New name! Enter your birth date to create a profile.")); return; }
     const dob=`${+f.day}.${+f.month}.${+f.year}`;
-    const reg=await authApi("register",{login:id,password:pass,name:name.trim(),dob});
+    const reg=await authApi("register",{login:id,password:pass,name:disp,dob});
     setBusy(false);
-    if(reg.ok){ onAuthed({ login:id, name:name.trim(), dob, paid:false }); return; }
+    if(reg.ok){ onAuthed({ login:id, name:disp, dob, paid:false }); return; }
     if(reg.error==="exists") setMsg(t("Это имя только что заняли. Введи пароль или выбери другое.","This name was just taken. Enter the password or choose another."));
     else setMsg(t("Не удалось создать профиль.","Could not create the profile."));
   };
@@ -591,12 +631,20 @@ function Intro({ onAuthed,account,enterSaved,logout,loaded }){
 
       <Card>
         <p style={{ ...pp, color:C.inkSoft, margin:"0 0 6px" }}>
-          {t("Введи имя (латиница) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.","Enter a name (latin) and password. A new name creates a profile, an existing one asks for the password.")}
+          {t("Введи имя (латинскими буквами) и пароль. Новое имя — создадим профиль, уже есть — попросим пароль.","Enter a name (latin letters) and password. A new name creates a profile, an existing one asks for the password.")}
         </p>
-        {field(name,(v)=>setName(clean(v)),t("Имя (латиница, уникальное)","Name (latin, unique)"),"text",20)}
+        {field(name,(v)=>setName(nameSan(v)),t("Имя (буквы, уникальное)","Name (letters, unique)"),"text",20)}
         {field(pass,setPass,t("Пароль","Password"),"password",40)}
-        <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2)}{num("month",t("ММ","MM"),2)}{num("year",t("ГГГГ","YYYY"),4)}</div>
-        <button onClick={go} disabled={busy} style={{ ...bigBtn, marginTop:16 }}>{busy?t("Минутку…","One moment…"):t("Узнать о себе ✨","Discover yourself ✨")}</button>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
+          <span style={{ color:C.inkSoft, fontSize:14 }}>{t("Дата рождения","Birth date")}</span>
+          <span onClick={()=>setDateMode(dateMode==="manual"?"list":"manual")} style={{ color:C.violet, fontSize:14, cursor:"pointer", fontWeight:700 }}>
+            {dateMode==="manual"?t("📅 из списка","📅 from list"):t("⌨️ вручную","⌨️ type")}
+          </span>
+        </div>
+        {dateMode==="manual"
+          ? <div style={{ display:"flex", gap:8, marginTop:8 }}>{num("day",t("ДД","DD"),2,monthRef)}{num("month",t("ММ","MM"),2,yearRef,monthRef)}{num("year",t("ГГГГ","YYYY"),4,null,yearRef)}</div>
+          : <div style={{ display:"flex", gap:8, marginTop:8 }}>{sel("day",days,t("День","Day"),true)}{sel("month",months,t("Мес","Mon"),true)}{sel("year",years,t("Год","Year"),false)}</div>}
+        <button onClick={go} disabled={busy} style={{ ...bigBtn, marginTop:16 }}>{busy?<><Spinner/>{t("Минутку…","One moment…")}</>:t("Узнать о себе ✨","Discover yourself ✨")}</button>
         {msg && <p style={{ color:"#e0554b", fontSize:14.5, marginTop:10 }}>{msg}</p>}
       </Card>
     </div>
@@ -618,9 +666,10 @@ function Result({ profile,tab,setTab,history,addHistory,delHistory,saveOn,premiu
           background:grad, padding:"4px 12px", borderRadius:20, cursor:"pointer" }}>{t("★ Премиум","★ Premium")}</span>}
         {premium && <span style={{ float:"right", fontSize:13, fontWeight:700, color:C.mint }}>{t("★ Премиум активен","★ Premium active")}</span>}
         <h2 style={{ fontFamily:"'Quicksand',sans-serif", fontSize:24, margin:0, fontWeight:700 }}>{profile.name}</h2>
-        <p style={{ color:C.inkSoft, margin:"2px 0 0", fontSize:15 }}>{profile.d}.{profile.m}.{profile.y}</p>
+        <p style={{ color:C.inkSoft, margin:"2px 0 0", fontSize:15 }}>{fmtDate(profile.d,profile.m,profile.y)}</p>
       </div>
-      <div style={{ display:"flex", gap:6, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
+      <div style={{ display:"flex", gap:6, overflowX:"auto",
+        position:"sticky", top:0, zIndex:5, background:"#fdf4ef", margin:"0 -16px 12px", padding:"8px 16px" }}>
         {tabs.map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ flex:"1 0 auto", padding:"9px 13px", borderRadius:14,
             cursor:"pointer", fontFamily:"'Quicksand',sans-serif", fontSize:13.5, fontWeight:700, whiteSpace:"nowrap",
@@ -659,12 +708,12 @@ function ProfileTab({ p,save,premium,openPaywall }){
         <Stat big={p.sun.s} label={t("Знак","Sign")} sub={p.sun.n}/><Stat big={p.soul} label={t("Душа","Soul")}/><Stat big={p.lp} label={t("Путь","Path")}/><Stat big={p.personalYearNow} label={t("Год","Year")}/>
       </Card>
       <Card>
-        <h3 style={h3}>☉ {p.sun.n} · {t("стихия","element")} {p.sun.el}</h3>
-        <p style={pp}>{t(`Солнце в знаке ${p.sun.n} задаёт твою тёплую природу и то, как ты светишь миру.`,`Your Sun in ${p.sun.n} shapes your warm nature and the way you shine in the world.`)}</p>
+        <h3 style={h3}>☉ {p.sun.s} {SIGNMOJI[p.sun.n]||""} {p.sun.n} · стихия {ELEMOJI[p.sun.el]||""} «{p.sun.el}»</h3>
+        <p style={pp}>Солнце в знаке {p.sun.n} задаёт твою тёплую природу и то, как ты светишь миру.</p>
         <h3 style={{ ...h3, marginTop:14 }}>🔢 {t("Число жизненного пути","Life Path number")} — {p.lp}</h3>
-        <p style={pp}>{gLP(p.lp)}</p>
+        <Bulleted text={gLP(p.lp)}/>
         <h3 style={{ ...h3, marginTop:14 }}>💗 {t("Число души","Soul number")} — {p.soul}</h3>
-        <p style={pp}>{gSOUL(p.soul)}</p>
+        <Bulleted text={gSOUL(p.soul)}/>
         <h3 style={{ ...h3, marginTop:14 }}>🐉 {t("Год по восточному календарю","Eastern zodiac year")} — {p.chinese}</h3>
         <p style={pp}>{t(`Год ${p.chinese} добавляет тебе свои славные черты.`,`The year of the ${p.chinese} adds its fine traits to you.`)}</p>
       </Card>
@@ -959,10 +1008,13 @@ function ChatTab({ p,premium,openPaywall,save }){
   const [input,setInput]=useState(""); const [loading,setLoading]=useState(false);
   const endRef=useRef(null);
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,loading]);
-  const userCount=msgs.filter(m=>m.role==="user").length;
-  const locked=!premium && userCount>=3;
+  const chatKey=()=>`cifro:chat:${curLogin()}:${new Date().toISOString().slice(0,10)}`;
+  const [used,setUsed]=useState(()=>{ try{ return +(localStorage.getItem(chatKey())||0); }catch(e){ return 0; } });
+  const LIMIT=3;
+  const locked=!premium && used>=LIMIT;
   const send=async()=>{ if(!input.trim()||loading||locked)return;
     const next=[...msgs,{role:"user",content:input.trim()}]; setMsgs(next); setInput(""); setLoading(true);
+    if(!premium){ const n=used+1; setUsed(n); try{ localStorage.setItem(chatKey(),String(n)); }catch(e){} }
     const r=await ask(next.map(m=>({role:m.role,content:m.content})),sys); setMsgs([...next,{role:"assistant",content:r}]); setLoading(false); };
   return (
     <Card style={{ padding:14 }}>
@@ -978,7 +1030,7 @@ function ChatTab({ p,premium,openPaywall,save }){
       </div>
       {locked ? (
         <div style={{ marginTop:12, textAlign:"center", background:C.soft, borderRadius:16, padding:16 }}>
-          <p style={{ ...pp, margin:"0 0 10px" }}>{t('Бесплатные вопросы на сегодня закончились 🙂 В премиуме — общение без ограничений.','You have used your free questions for today 🙂 Premium gives unlimited chat.')}</p>
+          <p style={{ ...pp, margin:"0 0 10px" }}>{t('На сегодня бесплатные вопросы закончились 🙂 Новые — завтра. В премиуме — общение без ограничений.','You have used your free questions for today 🙂 New ones tomorrow. Premium gives unlimited chat.')}</p>
           <button onClick={openPaywall} style={bigBtn}>{t('★ Открыть премиум','★ Unlock premium')}</button>
         </div>
       ) : (
@@ -988,7 +1040,7 @@ function ChatTab({ p,premium,openPaywall,save }){
           <button onClick={send} disabled={loading} style={{ padding:"0 18px", borderRadius:14, border:"none", cursor:"pointer", background:grad, color:"#fff", fontSize:18, fontWeight:700 }}>➤</button>
         </div>
       )}
-      {!premium && !locked && <div style={{ textAlign:"center", color:C.inkSoft, fontSize:13, marginTop:8 }}>{t('Бесплатно','Free')}: {3-userCount} {t('вопроса осталось','questions left')}</div>}
+      {!premium && !locked && <div style={{ textAlign:"center", color:C.inkSoft, fontSize:13, marginTop:8 }}>{t('Сегодня осталось','Left today')}: {LIMIT-used} {t('вопр.','q.')}</div>}
     </Card>
   );
 }
@@ -1017,7 +1069,7 @@ function HistoryTab({ history,del,saveOn }){
 
 // ---------- ИИ-СЕКЦИЯ (премиум) ----------
 function AISection({ p,title,cta,prompt,save,histType,premium,openPaywall,sys }){
-  const [text,setText]=useState(""); const [loading,setLoading]=useState(false); const [saved,setSaved]=useState(false);
+  const [text,setText]=useState(()=>loadReading(histType)); const [loading,setLoading]=useState(false); const [saved,setSaved]=useState(false);
   if(!premium) return (
     <Card style={{ textAlign:"center", background:C.soft }}>
       <div style={{ fontSize:30 }}>🔒✨</div>
@@ -1028,7 +1080,7 @@ function AISection({ p,title,cta,prompt,save,histType,premium,openPaywall,sys })
   );
   const gen=async(again)=>{ setLoading(true); setSaved(false);
     const extra = again ? (LANG==="en" ? "\n\nGive a fresh, new perspective — do not repeat the previous reading, reveal something more." : "\n\nДай свежий, новый взгляд — не повторяй прошлый разбор, раскрой что-то ещё.") : "";
-    const r=await ask([{role:"user",content:prompt+extra}], sys || `${EXPERT} ${SAFE}`); setText(r); setLoading(false); };
+    const r=await ask([{role:"user",content:prompt+extra}], sys || `${EXPERT} ${SAFE}`); setText(r); saveReading(histType,r); setLoading(false); };
   return (
     <Card>
       <h3 style={h3}>✨ {title}</h3>
@@ -1036,12 +1088,12 @@ function AISection({ p,title,cta,prompt,save,histType,premium,openPaywall,sys })
         <>
           <p style={{ ...pp, whiteSpace:"pre-wrap" }}>{text}</p>
           <div style={{ display:"flex", gap:8, marginTop:12 }}>
-            <button onClick={()=>gen(true)} disabled={loading} style={{ ...ghostBtn, width:"auto", flex:1 }}>{loading?t("Думаю…","Thinking…"):t("↻ Узнать ещё","↻ Get more")}</button>
+            <button onClick={()=>gen(true)} disabled={loading} style={{ ...ghostBtn, width:"auto", flex:1 }}>{loading?<><Spinner color={C.violetD}/>{t("Думаю…","Thinking…")}</>:t("↻ Узнать ещё","↻ Get more")}</button>
             {save && <button onClick={()=>{ save({type:histType,title:title+" · "+new Date().toLocaleDateString(LANG==="en"?"en-US":"ru-RU"),content:text}); setSaved(true); }} disabled={saved}
               style={{ ...ghostBtn, width:"auto", flex:1, color:saved?C.mint:C.violetD, borderColor:saved?C.mint:C.line }}>{saved?t("Сохранено ✓","Saved ✓"):t("💾 Сохранить","💾 Save")}</button>}
           </div>
         </>
-      ) : <button onClick={()=>gen(false)} disabled={loading} style={{ ...bigBtn, marginTop:6 }}>{loading?t("Думаю…","Thinking…"):cta}</button>}
+      ) : <button onClick={()=>gen(false)} disabled={loading} style={{ ...bigBtn, marginTop:6 }}>{loading?<><Spinner/>{t("Думаю…","Thinking…")}</>:cta}</button>}
     </Card>
   );
 }
@@ -1068,9 +1120,9 @@ function Paywall({ onClose,onUnlock }){
         </div>
         <div style={{ marginTop:16, borderRadius:18, border:`2px solid ${C.violet}`, background:C.soft, padding:16, position:"relative" }}>
           <div style={{ position:"absolute", top:-10, left:16, background:grad, color:"#fff", fontSize:10.5, fontWeight:700, padding:"2px 10px", borderRadius:20 }}>{t("ПОЛНЫЙ ДОСТУП","FULL ACCESS")}</div>
-          <div style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:18 }}>♾️ {t("Подписка на неделю","Weekly subscription")}</div>
+          <div style={{ fontFamily:"'Quicksand',sans-serif", fontWeight:700, fontSize:18 }}>♾️ {t("Подписка","Subscription")}</div>
           <div style={{ color:C.inkSoft, fontSize:14.5, margin:"2px 0 6px" }}>{t("Открывает все разборы, прогнозы, совместимость и чат без ограничений.","Unlocks all readings, forecasts, compatibility and unlimited chat.")}</div>
-          <div style={{ color:C.violetD, fontWeight:800, fontSize:22, marginBottom:10 }}>{cfg.price || t("4 990 ₸ / неделя","$9.90 / week")}</div>
+          <div style={{ color:C.violetD, fontWeight:800, fontSize:22, marginBottom:10 }}>{cfg.price || t("4 990 ₸ / месяц","$9.90 / month")}</div>
           {payLink(cfg.kaspiLink, "Kaspi", t("Оплатить через Kaspi","Pay with Kaspi"), { ...bigBtn, background:"#ff3b30" })}
           {cfg.appleLink && <><div style={{ height:8 }}/>{payLink(cfg.appleLink, "Apple Pay", " Pay", { ...bigBtn, background:"#000" })}</>}
         </div>
@@ -1129,7 +1181,7 @@ function AdminPanel(){
           <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Ссылка Apple Pay / Stripe (для англоязычной аудитории, можно оставить пустым)</label>
           <input value={cfg.appleLink||""} onChange={e=>setCfg({...cfg,appleLink:e.target.value})} placeholder="https://buy.stripe.com/... (Apple Pay включается в Stripe)" style={inpS}/>
           <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>Цена подписки (в неделю) — что видит клиент</label>
-          <input value={cfg.price||""} onChange={e=>setCfg({...cfg,price:e.target.value})} placeholder="Напр. 4 990 ₸ / неделя" style={inpS}/>
+          <input value={cfg.price||""} onChange={e=>setCfg({...cfg,price:e.target.value})} placeholder="Напр. 4 990 ₸ / месяц (или / неделя)" style={inpS}/>
           <label style={{ fontSize:14.5, color:C.inkSoft, display:"block", marginTop:8 }}>🔑 Секретный промокод (полный доступ бесплатно). Держи в тайне — кому дашь, тот заходит везде.</label>
           <input value={cfg.promo||""} onChange={e=>setCfg({...cfg,promo:e.target.value})} placeholder="Напр. VIP2026" style={inpS}/>
           <label onClick={()=>setCfg({...cfg,showHistory:cfg.showHistory===false?true:false})} style={{ display:"flex", alignItems:"center", gap:10, marginTop:14, cursor:"pointer", fontSize:15 }}>
