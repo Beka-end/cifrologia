@@ -29,7 +29,7 @@ export default async function handler(req,res){
   if(req.method!=="POST") return res.status(405).json({error:"POST only"});
   const { action, login, password, name, dob } = req.body||{};
   const id = String(login||"").trim().toLowerCase();
-  if(!/^[a-z0-9_]{3,20}$/.test(id)) return res.status(200).json({error:"bad_login"});
+  if(!id || id.length<2 || id.length>40) return res.status(200).json({error:"bad_login"});
   try{
     if(action==="check"){
       const r=await db([...ENSURE,{ sql:"SELECT data FROM users WHERE login=?", args:[id] }]);
